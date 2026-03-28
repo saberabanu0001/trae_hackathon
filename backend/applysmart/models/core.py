@@ -122,6 +122,7 @@ class Opportunity(BaseModel):
     title: str
     country: str | None = None
     url: str | None = None
+    snippet: str | None = None
     deadline: date | None = None
     fully_funded: bool | None = None
     requires_ielts: bool | None = None
@@ -160,6 +161,8 @@ class DraftOutputs(BaseModel):
     professor_email_subject: str
     professor_email_body: str
     sop_outline: list[str]
+    scholarship_sop: str | None = None
+    motivation_letter: str | None = None
 
 
 class FollowUpItem(BaseModel):

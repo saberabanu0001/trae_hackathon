@@ -9,4 +9,9 @@ langchain-core
 httpx
 tenacity
 rich
-pypdf
+google-genai
+groq
+openai
+pdfplumber
+pymupdf
+nest_asyncio

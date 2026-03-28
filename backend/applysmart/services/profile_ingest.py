@@ -3,25 +3,45 @@ import json
 import asyncio
 
 
+from datetime import datetime, timezone
+
+
+def _calculate_readme_score(readme: str | None) -> float:
+    if not readme:
+        return 0.0
+    score = 0.0
+    if len(readme) > 500:
+        score += 30
+    if "## " in readme:
+        score += 25
+    if "```" in readme:
+        score += 20
+    if "![" in readme or "http" in readme: # Simple proxy for badges/screenshots
+        score += 25
+    return min(100, score)
+
+
 async def synthesize_profile(profile: Profile, gh_payload: dict | None = None) -> Profile:
     """
     LLM-based synthesis of the profile. Cross-references GitHub, Resume, and target country.
     """
-    system_instruction = """You are the ApplySmart Profile Agent. Your job is to analyze a student's profile (Resume + GitHub + Goals) and provide deep, actionable insights.
+    system_instruction = """You are the ApplySmart Profile Agent. Your job is to analyze a student's profile (Resume + GitHub + Goals) and provide deep, actionable insights for SCHOLARSHIP MATCHING.
 
-CRITICAL INSTRUCTIONS:
-1. STRENGTHS: Don't just copy raw resume lines. Synthesize them into meaningful achievements as FULL SENTENCES.
-   - Good: "2+ years Teaching Assistant experience signals strong communication ability."
-   - Bad: "Teaching Assistant Jan 2024 - Present"
-2. CONFLICTS: Cross-reference skills. If they claim PyTorch on their CV but their GitHub has 0 PyTorch repos, generate a ConflictItem.
-   - Severity: critical/high/medium/low.
-3. DNA VECTOR: Compute 6-axis scores (0-100) based on real evidence. Provide a one-line explanation for each.
-   - technical_depth, execution_consistency, research_track_fit, language_readiness, engineering_track_fit, publication_strength.
-4. BUDGET & IELTS: Analyze against target country (e.g., Australia costs ~$1500-2000/mo, needs 6.5+ IELTS).
-5. REJECTION RISKS: Identify specific risks based on the profile (e.g., "IELTS Gap", "Low Project Documentation").
-6. VERDICT: Provide a 20-second summary that a stranger could read to understand their situation.
-7. ACTION PLAN: Provide a specific 30-day plan (Week 1, Week 2, Week 3, Week 4).
-8. TRACK: Decide if they are Engineering-track or Research-track.
+CRITICAL CONTEXT:
+ApplySmart is a SCHOLARSHIP-ONLY matching system. We do not support self-funded study. 
+The student's declared budget is only for incidental costs; we are matching them to 100% FULLY-FUNDED opportunities.
+
+INSTRUCTIONS:
+1. STRENGTHS: Synthesize into meaningful achievements that win SCHOLARSHIPS.
+2. CONFLICTS: Detect unverified claims (e.g. CV skills vs GitHub evidence).
+3. DNA VECTOR: Compute 6-axis scores based on REAL data.
+4. SCHOLARSHIP ANALYSIS:
+   - For Australia: Needs 6.5+ IELTS. If missing, flag as "Critical Scholarship Blocker".
+   - Budget: If budget is low (e.g. $500), emphasize that this student MUST win a fully-funded award (DAAD, Erasmus, GKS, Australia Awards).
+   - Analysis should focus on "Scholarship Competitiveness" rather than "Self-funding Capability".
+5. VERDICT: Summary of scholarship candidacy.
+6. ACTION PLAN: Focus on winning scholarships (improving profile, securing references, acing IELTS).
+7. REJECTION RISKS: Urgency MUST be one of: 'critical', 'high', 'medium', 'low' (all lowercase).
 
 Output MUST be a JSON object matching this structure:
 {
@@ -68,13 +88,13 @@ Output MUST be a JSON object matching this structure:
         res_text = await chat_completion(prompt, system_instruction=system_instruction, response_format="json_object")
         if res_text.startswith("LLM_NOT_CONFIGURED"):
             print("[ProfileAgent] LLM NOT CONFIGURED - skipping synthesis")
-            return profile
+            return _apply_deterministic_fallbacks(profile)
 
         try:
             data = json.loads(res_text)
         except json.JSONDecodeError as e:
             print(f"[ProfileAgent] JSON Decode Error: {e}\nRaw response: {res_text}")
-            return profile
+            return _apply_deterministic_fallbacks(profile)
             
         # Parse DNA vector
         dna_data = data.get("dna")
@@ -85,11 +105,17 @@ Output MUST be a JSON object matching this structure:
             except Exception:
                 pass
 
-        return profile.model_copy(update={
+        # Normalize rejection risk urgency to lowercase (Fix for bug)
+        raw_risks = data.get("rejection_risks", [])
+        for r in raw_risks:
+            if "urgency" in r:
+                r["urgency"] = r["urgency"].lower()
+
+        p = profile.model_copy(update={
             "strengths": data.get("strengths", profile.strengths),
             "conflicts": [ConflictItem.model_validate(c) for c in data.get("conflicts", [])],
             "dna": dna_vector,
-            "rejection_risks": [RejectionRisk.model_validate(r) for r in data.get("rejection_risks", [])],
+            "rejection_risks": [RejectionRisk.model_validate(r) for r in raw_risks],
             "ielts_gap_analysis": data.get("ielts_gap_analysis"),
             "budget_analysis": data.get("budget_analysis"),
             "verdict": data.get("verdict"),
@@ -97,9 +123,90 @@ Output MUST be a JSON object matching this structure:
             "opportunity_type_verdict": data.get("opportunity_type_verdict"),
             "consistency_summary": data.get("consistency_summary", profile.consistency_summary),
         })
+        return _apply_deterministic_fallbacks(p)
     except Exception as e:
         print(f"[ProfileAgent] synthesis error: {e}")
-        return profile
+        return _apply_deterministic_fallbacks(profile)
+
+
+def _apply_deterministic_fallbacks(p: Profile) -> Profile:
+    """
+    Ensure critical fields like IELTS, budget, and conflicts have fallback logic if LLM fails.
+    """
+    updates: dict[str, Any] = {}
+    
+    # Deterministic IELTS analysis (Task 5)
+    if not p.has_ielts and p.target_country == "Australia":
+        if not p.ielts_gap_analysis:
+            updates["ielts_gap_analysis"] = "Australia requires IELTS 6.5+ for most programs. Current match pool is effectively 0."
+        if not any(r.risk_name == "IELTS Gap" for r in p.rejection_risks):
+            p.rejection_risks.append(RejectionRisk(
+                risk_name="IELTS Gap",
+                impact="Australian target unreachable",
+                urgency="critical",
+                fix_action="Register for IELTS immediately"
+            ))
+
+    # Deterministic Budget analysis (Task 5)
+    if p.budget_usd < 2000:
+        if not p.budget_analysis:
+            p.budget_analysis = (
+                f"Your declared budget (${p.budget_usd}/mo) is low for self-funding. "
+                "ApplySmart has flagged you as a 100% SCHOLARSHIP CANDIDATE. "
+                "We are prioritizing fully-funded programs (DAAD, Erasmus, GKS, Australia Awards) "
+                "where your technical strength can win you a full ride."
+            )
+        
+        # Clean up any "increase budget" advice in action plan, verdict, or budget analysis
+        bad_phrases = ["increase budget", "raise funds", "self-fund", "personal savings", "financial proof"]
+        
+        if p.action_plan:
+            new_plan = []
+            for step in p.action_plan:
+                if any(phrase in step.lower() for phrase in bad_phrases):
+                    new_plan.append("Shortlist 3-5 fully-funded scholarships that match your DNA (technical depth/research).")
+                else:
+                    new_plan.append(step)
+            updates["action_plan"] = new_plan
+
+        if p.verdict and any(phrase in p.verdict.lower() for phrase in bad_phrases):
+            p.verdict = p.verdict.replace("increase your budget", "focus on full-ride scholarships")
+            p.verdict = p.verdict.replace("raise more funds", "secure a 100% funded award")
+            updates["verdict"] = p.verdict
+
+    # Ensure opportunity type verdict is always scholarship-focused
+    if not p.opportunity_type_verdict or "self-fund" in p.opportunity_type_verdict.lower():
+        updates["opportunity_type_verdict"] = "100% Fully-Funded Scholarship Track (High Competitiveness)"
+
+    # Deterministic Conflict Detection (Task 3)
+    cv_text = (p.resume_text or "").lower()
+    gh_langs = {l.lower() for l in p.github_analysis.languages.keys()}
+    if "pytorch" in cv_text or "tensorflow" in cv_text:
+        if "python" not in gh_langs:
+            if not any(c.type == "Skill Mismatch" for c in p.conflicts):
+                p.conflicts.append(ConflictItem(
+                    type="Skill Mismatch",
+                    severity="high",
+                    claim="Deep Learning (PyTorch/TensorFlow)",
+                    evidence="No Python repositories found on GitHub",
+                    message="You claim deep learning skills, but your GitHub shows no Python activity to support this.",
+                    recommendation="Add a small PyTorch project to your GitHub."
+                ))
+
+    # DNA Fallback (Task 4)
+    if not p.dna:
+        updates["dna"] = DNAVector(
+            technical_depth=DNAAxis(score=40 + min(40, len(p.languages) * 5), explanation="Based on language variety."),
+            execution_consistency=DNAAxis(score=p.github_analysis.consistency_score, explanation="Based on commit history."),
+            research_track_fit=DNAAxis(score=30 + min(40, len(p.research_interests) * 5), explanation="Based on interests."),
+            language_readiness=DNAAxis(score=80 if p.has_ielts else 30, explanation="Based on IELTS status."),
+            engineering_track_fit=DNAAxis(score=50 + min(30, p.github_analysis.repos_count * 2), explanation="Based on repo count."),
+            publication_strength=DNAAxis(score=0, explanation="No publications detected.")
+        )
+
+    if updates:
+        p = p.model_copy(update=updates)
+    return p
 
 
 async def ingest_profile_sources(profile: Profile) -> tuple[Profile, dict[str, Any]]:
@@ -162,6 +269,8 @@ async def ingest_profile_sources(profile: Profile) -> tuple[Profile, dict[str, A
     languages_count: dict[str, int] = {}
     projects: list[str] = []
     topics: list[str] = []
+    readme_scores: list[float] = []
+    last_pushed: datetime | None = None
 
     if gh_payload and not gh_payload.get("error"):
         p = gh_payload.get("profile") or {}
@@ -172,6 +281,9 @@ async def ingest_profile_sources(profile: Profile) -> tuple[Profile, dict[str, A
         gh_analysis.repos_count = len(gh_payload.get("repos") or [])
         gh_analysis.total_stars = sum(int(r.get("stargazers_count") or 0) for r in (gh_payload.get("repos") or []) if isinstance(r, dict))
         
+        now = datetime.now(timezone.utc)
+        recent_pushes = 0
+
         for repo in gh_payload.get("repos") or []:
             if not isinstance(repo, dict):
                 continue
@@ -192,7 +304,34 @@ async def ingest_profile_sources(profile: Profile) -> tuple[Profile, dict[str, A
                     topics.append(tp)
                     gh_analysis.research_signals.append(tp.lower())
             
+            # Activity scoring (Fix for "inactive" bug)
+            updated_at_str = repo.get("updated_at")
+            if updated_at_str:
+                dt = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                if last_pushed is None or dt > last_pushed:
+                    last_pushed = dt
+                if (now - dt).days < 180: # 6 months
+                    recent_pushes += 1
+
+            # README scoring (Fix for 0.0 bug)
+            if repo.get("readme_content"):
+                readme_scores.append(_calculate_readme_score(repo["readme_content"]))
+            
             gh_analysis.top_repos.append(repo)
+
+        # Finalize GitHub Heuristics
+        if readme_scores:
+            gh_analysis.readme_quality_avg = sum(readme_scores) / len(readme_scores)
+        
+        if gh_analysis.repos_count > 0:
+            gh_analysis.consistency_score = min(100, (recent_pushes / gh_analysis.repos_count) * 100)
+        
+        if recent_pushes > 3:
+            gh_analysis.activity_pattern = "consistent"
+        elif recent_pushes > 0:
+            gh_analysis.activity_pattern = "burst"
+        else:
+            gh_analysis.activity_pattern = "inactive"
 
         langs_sorted = [k for k, _ in sorted(languages_count.items(), key=lambda kv: (-kv[1], kv[0]))]
         total_lang_repos = sum(languages_count.values()) or 1

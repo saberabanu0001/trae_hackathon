@@ -20,10 +20,15 @@ from applysmart.services.rerank import apply_critic_demotion
 StateDict = Dict[str, Any]
 
 
+import inspect
+
 def _adapt(agent_fn: Callable[[ApplySmartState], ApplySmartState]) -> Callable[[StateDict], StateDict]:
-    def _wrapped(state: StateDict) -> StateDict:
+    async def _wrapped(state: StateDict) -> StateDict:
         parsed = ApplySmartState.model_validate(state)
-        updated = agent_fn(parsed)
+        if inspect.iscoroutinefunction(agent_fn):
+            updated = await agent_fn(parsed)
+        else:
+            updated = agent_fn(parsed)
         return updated.model_dump()
 
     return _wrapped

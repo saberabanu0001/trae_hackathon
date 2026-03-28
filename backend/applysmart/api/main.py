@@ -8,7 +8,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from applysmart.models.core import Profile, ProfileGaps
+from applysmart.models.core import Profile, ProfileGaps, ApplySmartState
+from applysmart.graph.langgraph_app import build_app
 from applysmart.services.cv_builder import render_cv_markdown
 from applysmart.services.fetch_text import fetch_page_text
 from applysmart.services.github_public import fetch_public_github, parse_github_username
@@ -221,6 +222,7 @@ async def _build_profile_payload(
     cv_md = render_cv_markdown(profile)
 
     return {
+        "ok": True,
         "profile": profile.model_dump(mode="json"),
         "gaps": gaps.model_dump(),
         "ingest": ingest,
@@ -320,3 +322,73 @@ async def api_profile_cv_download(
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@app.post("/api/scholarships/search")
+async def api_scholarships_search(
+    full_name: str = Form(""),
+    nationality: str = Form("Bangladesh"),
+    target_country: str = Form("South Korea"),
+    degree_level: str = Form("master"),
+    major: str = Form("Computer Science"),
+    gpa: float = Form(3.2),
+    gpa_scale_max: float = Form(4.0),
+    has_ielts: str = Form("false"),
+    budget_usd: int = Form(0),
+    interests: str = Form(""),
+    linkedin_url: str = Form(""),
+    github_url: str = Form(""),
+    portfolio_urls: str = Form(""),
+    resume: UploadFile | None = File(None),
+    academic_status: str = Form(""),
+    ielts_score: str = Form(""),
+):
+    try:
+        # 1. Build profile (ingests PDF/GitHub)
+        payload = await _build_profile_payload(
+            full_name=full_name,
+            nationality=nationality,
+            target_country=target_country,
+            degree_level=degree_level,
+            major=major,
+            gpa=gpa,
+            gpa_scale_max=gpa_scale_max,
+            has_ielts=has_ielts,
+            budget_usd=budget_usd,
+            interests=interests,
+            linkedin_url=linkedin_url,
+            github_url=github_url,
+            portfolio_urls=portfolio_urls,
+            resume=resume,
+            academic_status=academic_status,
+            ielts_score=ielts_score,
+        )
+        
+        # 2. Extract Profile object
+        profile_data = payload["profile"]
+        profile = Profile.model_validate(profile_data)
+        
+        # 3. Build LangGraph state
+        initial_state = ApplySmartState(profile=profile)
+        
+        # 4. Compile and run graph
+        # Note: We run the FULL graph which includes Profile Agent (redundant but safe)
+        # then Opportunity Search, Scoring, and Critic.
+        app_graph = build_app()
+        
+        # LangGraph invoke is async-safe
+        final_state_dict = await app_graph.ainvoke(initial_state.model_dump())
+        
+        # 5. Return JSON result
+        return {
+            "ok": True,
+            "state": final_state_dict
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "ok": False,
+            "error": str(e),
+            "message": f"Global scholarship search failed: {str(e)}"
+        }

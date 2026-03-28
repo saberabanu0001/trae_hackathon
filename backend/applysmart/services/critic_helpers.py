@@ -57,4 +57,16 @@ def eligibility_failures(
         if days >= 0 and days < 14:
             failures.append(f"Deadline in {days} days (<14) with no drafted materials.")
 
+    # Budget failure: if NOT fully funded and fees > budget
+    if not opp.fully_funded:
+        # Check if user budget is low and fees are significant
+        if opp.estimated_fees_usd is not None and profile.budget_usd < opp.estimated_fees_usd:
+            failures.append(
+                f"Program is NOT fully-funded. Estimated fees (${opp.estimated_fees_usd}) exceed your budget (${profile.budget_usd})."
+            )
+        elif opp.estimated_fees_usd is None:
+            # If fees unknown but NOT fully funded, warn or fail if budget is extremely low
+            if profile.budget_usd < 100:
+                failures.append("Funding status unknown but not fully-funded; your budget is near-zero.")
+
     return failures

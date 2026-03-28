@@ -301,6 +301,27 @@
   .insight-row.warning { border-color: rgba(240,168,48,0.2); background: var(--amber-dim); }
   .insight-row.gap { border-color: rgba(240,84,106,0.2); background: var(--red-dim); }
   .insight-row.blue { border-color: rgba(91,164,245,0.2); background: var(--blue-dim); }
+  .insight-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+  }
+  .insight-item.error { border-color: var(--red-dim); background: var(--red-dim); color: var(--red); }
+
+  /* TIMELINE */
+  .timeline { position: relative; padding-left: 2rem; }
+  .timeline::before {
+    content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+    width: 2px; background: var(--border-hi);
+  }
+  .timeline-item { position: relative; margin-bottom: 1.5rem; }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -2rem; top: 5px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); border: 3px solid var(--bg);
+    margin-left: 1px;
+  }
+  .timeline-day { font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
+  .timeline-task { font-size: 14px; color: var(--text); }
 
   /* DOWNLOAD BTN */
   .dl-bar {
@@ -689,6 +710,10 @@
         <button class="tab active" onclick="showTab('profile')">Profile Card</button>
         <button class="tab" onclick="showTab('resume')">Auto CV</button>
         <button class="tab" onclick="showTab('dna')">Opportunity DNA</button>
+        <button class="tab" onclick="showTab('opps')">Scholarships</button>
+        <button class="tab" onclick="showTab('drafts')">Drafts</button>
+        <button class="tab" onclick="showTab('plan')">Action Plan</button>
+        <button class="tab" onclick="showTab('followup')">Follow-up</button>
       </div>
 
       <!-- PROFILE CARD TAB -->
@@ -724,7 +749,7 @@
           <div class="dl-bar">
             <p>Share this profile with the Opportunity Agent to begin scholarship matching.</p>
             <button class="btn btn-ghost btn-sm" onclick="showTab('resume')">View CV →</button>
-            <button class="btn btn-primary btn-sm" type="button" title="Next: connect to full LangGraph run from CLI or API" onclick="alert('Next step: run the full ApplySmart pipeline with this profile JSON (Opportunity Agent). CLI: python -m applysmart.scripts.demo_run')">Find Scholarships →</button>
+            <button class="btn btn-primary btn-sm" type="button" onclick="searchScholarships()">Find Scholarships →</button>
           </div>
         </div>
       </div>
@@ -748,7 +773,78 @@
           <div class="insight-list" style="margin-top:1rem" id="dnaInsights"></div>
         </div>
         <div style="margin-top:12px;text-align:right">
-          <button class="btn btn-primary" onclick="alert('Sending profile to Opportunity Agent...')">Send to Opportunity Agent →</button>
+          <button class="btn btn-primary" onclick="searchScholarships()">Find Best Scholarship Matches →</button>
+        </div>
+      </div>
+
+      <!-- OPPORTUNITY TAB -->
+      <div id="tab-opps" style="display:none">
+        <div class="input-card">
+          <div class="card-label">Live Scholarship Matches</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">The Opportunity Agent has searched the global web for fully-funded programs matching your DNA.</p>
+          <div id="oppsLoading" style="text-align:center;padding:2rem;display:none">
+            <div class="dot loading" style="width:20px;height:20px;display:inline-block"></div>
+            <p style="margin-top:10px">Searching global databases (DAAD, Erasmus, MEXT)...</p>
+          </div>
+          <div id="criticVeto"></div>
+          <div id="oppsList" class="insight-list"></div>
+        </div>
+      </div>
+
+      <!-- DRAFTS TAB -->
+      <div id="tab-drafts" style="display:none">
+        <div class="input-card">
+          <div class="card-label">Scholarship Drafts</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">AI-generated Statement of Purpose and Motivation Letters tailored to your top match.</p>
+          
+          <div id="draftsLoading" style="text-align:center;padding:2rem;display:none">
+            <div class="dot loading" style="width:20px;height:20px;display:inline-block"></div>
+            <p style="margin-top:10px">Drafting your scholarship materials...</p>
+          </div>
+
+          <div id="draftsContent" style="display:none">
+            <div style="margin-bottom:1.5rem">
+              <h3 style="font-size:14px;color:var(--accent);margin-bottom:8px">Statement of Purpose (SoP)</h3>
+              <div id="sopDisplay" style="background:var(--surface2);padding:1rem;border-radius:8px;font-size:13px;max-height:300px;overflow-y:auto;white-space:pre-wrap;border:1px solid var(--border)"></div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="downloadDraft('sop')">Download SoP (.md)</button>
+            </div>
+
+            <div style="margin-bottom:1.5rem">
+              <h3 style="font-size:14px;color:var(--accent);margin-bottom:8px">Motivation Letter</h3>
+              <div id="motivationDisplay" style="background:var(--surface2);padding:1rem;border-radius:8px;font-size:13px;max-height:300px;overflow-y:auto;white-space:pre-wrap;border:1px solid var(--border)"></div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="downloadDraft('motivation')">Download Motivation Letter (.md)</button>
+            </div>
+            
+            <div>
+              <h3 style="font-size:14px;color:var(--accent);margin-bottom:8px">Professor Inquiry Email</h3>
+              <div id="emailDisplay" style="background:var(--surface2);padding:1rem;border-radius:8px;font-size:13px;border:1px solid var(--border)">
+                <strong id="emailSubject"></strong><br><br>
+                <div id="emailBody" style="white-space:pre-wrap"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="noDrafts" style="text-align:center;padding:2rem">
+            <button class="btn btn-primary" onclick="generateDrafts()">Generate Scholarship Drafts →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTION PLAN TAB -->
+      <div id="tab-plan" style="display:none">
+        <div class="input-card">
+          <div class="card-label">7-Day Scholarship Winning Sprint</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1.5rem">A high-velocity timeline generated by the Planning Agent based on your profile DNA.</p>
+          <div id="planList" class="timeline"></div>
+        </div>
+      </div>
+
+      <!-- FOLLOW-UP TAB -->
+      <div id="tab-followup" style="display:none">
+        <div class="input-card">
+          <div class="card-label">Post-Application Strategy</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1.5rem">Smart follow-up sequence to maximize your response rate from scholarship committees and professors.</p>
+          <div id="followupList" class="insight-list"></div>
         </div>
       </div>
 
@@ -1211,7 +1307,7 @@
         logHost.textContent = 'Error: ' + _fmtApiError(r.status, null, rawText);
         return;
       }
-      if (!r.ok) {
+      if (!r.ok || (data && data.ok === false)) {
         logHost.textContent = 'Error: ' + _fmtApiError(r.status, data, rawText);
         return;
       }
@@ -1229,12 +1325,218 @@
     }
   }
 
+  async function searchScholarships() {
+    const list = document.getElementById('oppsList');
+    const loading = document.getElementById('oppsLoading');
+    list.innerHTML = '';
+    loading.style.display = 'block';
+    showTab('opps'); // Custom tab switcher to show opportunities
+    
+    try {
+      const fd = buildFormData();
+      const r = await fetch('/api/scholarships/search', { method: 'POST', body: fd });
+      const data = await r.json();
+      loading.style.display = 'none';
+      
+      if (!data.ok) {
+        list.innerHTML = `<div class="insight-item error"><strong>Search Failed:</strong> ${data.message || data.error}</div>`;
+        return;
+      }
+      
+      const state = data.state || {};
+      const scoredList = state.scored || [];
+      
+      if (scoredList.length === 0) {
+        list.innerHTML = '<div class="insight-item">No scholarships found. Try adjusting your target countries or major.</div>';
+        return;
+      }
+      
+      // 1. Show Critic Agent Veto if any (The "Wow" moment)
+      const criticContainer = document.getElementById('criticVeto');
+      criticContainer.innerHTML = '';
+      if (state.critic && state.critic.action === 'block') {
+        const div = document.createElement('div');
+        div.className = 'insight-row gap';
+        div.style.marginBottom = '1.5rem';
+        div.innerHTML = `
+          <span class="insight-icon">🛑</span>
+          <div class="insight-text">
+            <strong style="color:var(--red)">Critic Agent Veto:</strong> ${state.critic.affected_title} has been blocked.
+            <div style="font-size:12px;margin-top:4px;color:var(--muted)">${state.critic.reason}</div>
+          </div>
+        `;
+        criticContainer.appendChild(div);
+      }
+
+      scoredList.forEach(scored => {
+        const opp = scored.opportunity;
+        const div = document.createElement('div');
+        div.className = 'insight-item';
+        
+        const score = Math.round(scored.total_score * 10);
+        const bucket = scored.bucket; // safe, target, reach
+        const bucketClass = bucket === 'safe' ? 'badge-new' : (bucket === 'target' ? 'badge-ai' : 'badge-opt');
+        
+        const fundingHtml = opp.fully_funded ? '<span class="badge badge-new">Fully Funded</span>' : '<span class="badge badge-opt">Partial</span>';
+        const deadline = opp.deadline ? new Date(opp.deadline).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : 'Check Official Site';
+        
+        // Country flags mapping
+        const flags = {
+          'Australia': '🇦🇺',
+          'Germany': '🇩🇪',
+          'Japan': '🇯🇵',
+          'South Korea': '🇰🇷',
+          'Singapore': '🇸🇬',
+          'EU/Global': '🇪🇺',
+          'Global': '🌍'
+        };
+        const flag = flags[opp.country] || '📍';
+
+        // Use the personalized reasons from the scoring agent
+        const [matchInsight, eligibilityStatus, eligibilityReason] = scored.reasons;
+        
+        const eligibilityColor = eligibilityStatus === 'Eligible' ? 'var(--green)' : (eligibilityStatus === 'Blocked' ? 'var(--red)' : 'var(--amber)');
+        const eligibilityHtml = `<span style="color:${eligibilityColor};font-size:12px;font-weight:600">${eligibilityStatus}: ${eligibilityReason}</span>`;
+
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:600;font-size:15px;color:var(--text);line-height:1.3">${opp.title}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">
+                ${flag} ${opp.country} · ${fundingHtml}
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="badge ${bucketClass}" style="text-transform:uppercase;font-size:10px">${bucket}</div>
+              <div style="font-size:18px;font-weight:700;color:var(--accent);margin-top:4px">${score}/10</div>
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+            <div>
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Deadline</div>
+              <div style="font-size:12px;font-weight:500">${deadline}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Eligibility</div>
+              <div>${eligibilityHtml}</div>
+            </div>
+          </div>
+
+          <p style="font-size:13px;margin:8px 0;line-height:1.4;color:var(--text)">
+            <span style="color:var(--accent);font-weight:600">Why Matched:</span> ${matchInsight}
+          </p>
+          
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+            <a href="${opp.url}" target="_blank" class="btn btn-ghost btn-sm">View Official Site ↗</a>
+            <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Fit Score: ${score}/10</span>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+      
+    } catch (e) {
+      loading.style.display = 'none';
+      list.innerHTML = `<div class="insight-item error"><strong>Error:</strong> ${e.message}</div>`;
+    }
+  }
+
+  async function generateDrafts() {
+    const content = document.getElementById('draftsContent');
+    const loading = document.getElementById('draftsLoading');
+    const noDrafts = document.getElementById('noDrafts');
+    
+    loading.style.display = 'block';
+    noDrafts.style.display = 'none';
+    content.style.display = 'none';
+    
+    try {
+      const fd = buildFormData();
+      // Use the same endpoint but it will now include drafting_agent results
+      const r = await fetch('/api/scholarships/search', { method: 'POST', body: fd });
+      const data = await r.json();
+      loading.style.display = 'none';
+      
+      if (!data.ok) {
+        noDrafts.style.display = 'block';
+        alert("Drafting failed: " + data.message);
+        return;
+      }
+      
+      const drafts = data.state.drafts;
+      if (!drafts) {
+        noDrafts.style.display = 'block';
+        alert("No drafts were generated. Ensure profile analysis is complete.");
+        return;
+      }
+      
+      document.getElementById('sopDisplay').textContent = drafts.scholarship_sop || "No SoP generated.";
+      document.getElementById('motivationDisplay').textContent = drafts.motivation_letter || "No Motivation Letter generated.";
+      document.getElementById('emailSubject').textContent = drafts.professor_email_subject || "No Subject";
+      document.getElementById('emailBody').textContent = drafts.professor_email_body || "No Body";
+      
+      // Populate Action Plan
+      const planList = document.getElementById('planList');
+      planList.innerHTML = '';
+      (data.state.plan?.days || []).forEach((task, i) => {
+        const div = document.createElement('div');
+        div.className = 'timeline-item';
+        div.innerHTML = `
+          <div class="timeline-day">Day ${i + 1}</div>
+          <div class="timeline-task">${task}</div>
+        `;
+        planList.appendChild(div);
+      });
+
+      // Populate Follow-ups
+      const followList = document.getElementById('followupList');
+      followList.innerHTML = '';
+      (data.state.followups || []).forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'insight-item';
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span class="badge badge-ai">In ${item.due_in_days} Days</span>
+            <span class="badge badge-opt">${item.channel.toUpperCase()}</span>
+          </div>
+          <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${item.message}</div>
+        `;
+        followList.appendChild(div);
+      });
+
+      content.style.display = 'block';
+    } catch (e) {
+      loading.style.display = 'none';
+      noDrafts.style.display = 'block';
+      alert("Error: " + e.message);
+    }
+  }
+
+  function downloadDraft(type) {
+    const text = type === 'sop' ? document.getElementById('sopDisplay').textContent : document.getElementById('motivationDisplay').textContent;
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = type === 'sop' ? 'Statement_of_Purpose.md' : 'Motivation_Letter.md';
+    a.click();
+  }
+
   function showTab(id) {
-    ['profile', 'resume', 'dna'].forEach((t) => {
-      document.getElementById('tab-' + t).style.display = t === id ? 'block' : 'none';
+    // Updated to include all 7 agent tabs
+    ['profile', 'resume', 'dna', 'opps', 'drafts', 'plan', 'followup'].forEach((t) => {
+      const el = document.getElementById('tab-' + t);
+      if (el) el.style.display = t === id ? 'block' : 'none';
     });
-    document.querySelectorAll('.tab').forEach((b, i) => {
-      b.classList.toggle('active', ['profile', 'resume', 'dna'][i] === id);
+    document.querySelectorAll('.tab').forEach((b) => {
+      const tabLabel = b.textContent.toLowerCase();
+      if (id === 'profile' && tabLabel.includes('profile')) b.classList.add('active');
+      else if (id === 'resume' && tabLabel.includes('resume')) b.classList.add('active');
+      else if (id === 'dna' && tabLabel.includes('dna')) b.classList.add('active');
+      else if (id === 'opps' && tabLabel.includes('scholarship')) b.classList.add('active');
+      else if (id === 'drafts' && tabLabel.includes('drafts')) b.classList.add('active');
+      else if (id === 'plan' && tabLabel.includes('plan')) b.classList.add('active');
+      else if (id === 'followup' && tabLabel.includes('follow-up')) b.classList.add('active');
+      else b.classList.remove('active');
     });
   }
 

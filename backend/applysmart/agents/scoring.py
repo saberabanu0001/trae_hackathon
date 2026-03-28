@@ -66,7 +66,14 @@ def scoring_agent(state: ApplySmartState) -> ApplySmartState:
 
     scored: list[ScoredOpportunity] = []
 
+    # DNA-based fit calculation (Task 4 improvement)
+    dna = profile.dna
+    tech_depth = dna.technical_depth.score if dna else 50.0
+    res_fit = dna.research_track_fit.score if dna else 50.0
+    eng_fit = dna.engineering_track_fit.score if dna else 50.0
+
     for opp in state.opportunities:
+        need_ielts = effective_requires_ielts(opp)
         eligibility, eligibility_reasons = _eligibility_score(
             profile_gpa=profile.gpa_as_us_four_point(),
             has_ielts=profile.has_ielts,
@@ -75,12 +82,18 @@ def scoring_agent(state: ApplySmartState) -> ApplySmartState:
         urgency = _urgency_score(opp)
         funding, funding_reasons = _funding_score(profile_budget=profile.budget_usd, opp=opp)
 
-        # simple fit heuristic for scaffold
-        fit = 0.7 if (opp.country == profile.target_country or opp.fully_funded) else 0.5
+        # Smart fit heuristic using DNA
+        is_research = "research" in (opp.title + (opp.snippet or "")).lower()
+        fit_score = res_fit if is_research else eng_fit
+        
+        # Bonus for target country match
+        if opp.country == profile.target_country:
+            fit_score = min(100.0, fit_score + 15.0)
+            
         confidence = 0.6 if opp.raw.get("source") == "cached_demo" else 0.4
 
         breakdown = ScoreBreakdown(
-            fit=_clamp01(fit),
+            fit=_clamp01(fit_score / 100.0),
             eligibility=_clamp01(eligibility),
             urgency=_clamp01(urgency),
             funding=_clamp01(funding),
@@ -103,16 +116,39 @@ def scoring_agent(state: ApplySmartState) -> ApplySmartState:
         total = _clamp01(max(0.0, total - penalty))
 
         # bucket by total
-        if total >= 0.75:
+        if total >= 0.75 and eligibility > 0.8:
             bucket = Bucket.safe
-        elif total >= 0.55:
+        elif total >= 0.50 or eligibility > 0.5:
             bucket = Bucket.target
         else:
             bucket = Bucket.reach
 
-        reasons = []
-        reasons.extend(eligibility_reasons)
-        reasons.extend(funding_reasons)
+        # Generate personalized match and eligibility strings
+        match_insight = "Matches your profile DNA."
+        low_title = opp.title.lower()
+        if "erasmus" in low_title and "ai" in (opp.title + (opp.snippet or "")).lower():
+            match_insight = "AI focus aligns with your multi-agent research."
+        elif "gks" in low_title or "korea" in low_title:
+            if profile.target_country == "South Korea":
+                match_insight = "Good Korea fit because you are already targeting South Korea."
+            else:
+                match_insight = "Strong academic fit for Korea's government scholarship."
+        elif opp.country == profile.target_country:
+            match_insight = f"Direct match for your target country {profile.target_country}."
+        elif breakdown.fit > 0.8:
+            match_insight = f"Strong alignment with your {profile.major} background and projects."
+
+        eligibility_status = "Eligible"
+        if eligibility < 0.4:
+            eligibility_status = "Blocked"
+        elif eligibility < 0.9:
+            eligibility_status = "Partially Blocked"
+
+        eligibility_reason = "No major blockers found."
+        if eligibility_reasons:
+            eligibility_reason = eligibility_reasons[0]
+        elif not profile.has_ielts and need_ielts is True:
+            eligibility_reason = "IELTS is missing and may be required for this program."
 
         scored.append(
             ScoredOpportunity(
@@ -120,7 +156,7 @@ def scoring_agent(state: ApplySmartState) -> ApplySmartState:
                 total_score=total,
                 bucket=bucket,
                 breakdown=breakdown,
-                reasons=reasons,
+                reasons=[match_insight, eligibility_status, eligibility_reason],
             )
         )
 

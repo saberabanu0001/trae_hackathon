@@ -46,37 +46,52 @@ def opportunity_agent(state: ApplySmartState) -> ApplySmartState:
 
     cached = [
         Opportunity(
-            title="Erasmus Mundus (EMJMD) — Demo",
-            country="EU",
-            url="https://example.com/erasmus-demo",
+            title="Erasmus Mundus Joint Masters (EMJMD)",
+            country="EU/Global",
+            url="https://example.com/erasmus-mundus",
             deadline=today + timedelta(days=10),
             fully_funded=True,
             requires_ielts=True,
             minimum_gpa=3.5,
             estimated_fees_usd=0,
-            raw={"source": "cached_demo"},
+            snippet="High-prestige fully funded masters programs in Europe for international students.",
+            raw={"source": "cached"},
         ),
         Opportunity(
-            title="Korea GKS Graduate Scholarship — Demo",
+            title="Korea GKS Graduate Scholarship",
             country="South Korea",
-            url="https://example.com/gks-demo",
+            url="https://example.com/gks-scholarship",
             deadline=today + timedelta(days=180),
             fully_funded=True,
             requires_ielts=False,
             minimum_gpa=2.8,
             estimated_fees_usd=0,
-            raw={"source": "cached_demo"},
+            snippet="Government-funded graduate scholarship for international students to study in South Korea.",
+            raw={"source": "cached"},
         ),
         Opportunity(
-            title="DAAD Germany Fully Funded — Demo",
+            title="DAAD Germany Development-Related Postgraduate Courses",
             country="Germany",
-            url="https://example.com/daad-demo",
+            url="https://example.com/daad-scholarship",
             deadline=today + timedelta(days=95),
             fully_funded=True,
-            requires_ielts=False,
+            requires_ielts=True,
             minimum_gpa=3.0,
             estimated_fees_usd=0,
-            raw={"source": "cached_demo"},
+            snippet="Fully funded masters and PhD scholarships for professionals from developing countries.",
+            raw={"source": "cached"},
+        ),
+        Opportunity(
+            title="Australia Awards Scholarship",
+            country="Australia",
+            url="https://example.com/australia-awards",
+            deadline=today + timedelta(days=45),
+            fully_funded=True,
+            requires_ielts=True,
+            minimum_gpa=3.0,
+            estimated_fees_usd=0,
+            snippet="Prestigious international scholarships funded by the Australian Government for students from partner countries.",
+            raw={"source": "cached", "demo_pin_top": True},
         ),
     ]
 
@@ -85,10 +100,23 @@ def opportunity_agent(state: ApplySmartState) -> ApplySmartState:
         return state.model_copy(update={"opportunities": cached})
 
     try:
-        query, live = asyncio.run(search_opportunities(profile, max_results=8))
-    except RuntimeError:
-        query, live = "", []
-    except Exception:
+        # Fixed async execution for both script and FastAPI contexts
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # If in a running loop (like FastAPI), we must run this as a task and wait
+            # But since this is a LangGraph node, we can just await it directly if we make the agent async
+            # For now, let's use a safe synchronous bridge for the demo script
+            import nest_asyncio
+            nest_asyncio.apply()
+            query, live = asyncio.run(search_opportunities(profile, max_results=15))
+        else:
+            query, live = asyncio.run(search_opportunities(profile, max_results=15))
+    except Exception as e:
+        print(f"[OpportunityAgent] Search failed: {e}")
         query, live = "", []
 
     demo_flag = _env_truthy("APPLYSMART_DEMO_VETO")
