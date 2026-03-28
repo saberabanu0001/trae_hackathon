@@ -80,6 +80,7 @@ class Profile(BaseModel):
     research_interests: list[str] = Field(default_factory=list)
     strengths: list[str] = Field(default_factory=list)
     consistency_summary: str | None = None
+    verified_skills: list[str] = Field(default_factory=list)
     
     # Advanced Analysis
     github_analysis: GitHubAnalysis = Field(default_factory=GitHubAnalysis)
@@ -118,6 +119,12 @@ class ProfileGaps(BaseModel):
     notes: list[str] = Field(default_factory=list)
 
 
+class OpportunityType(str, Enum):
+    portal = "portal-based"
+    research = "research-based"
+    university = "university-funding"
+
+
 class Opportunity(BaseModel):
     title: str
     country: str | None = None
@@ -128,6 +135,9 @@ class Opportunity(BaseModel):
     requires_ielts: bool | None = None
     minimum_gpa: float | None = None
     estimated_fees_usd: int | None = None
+    opp_type: OpportunityType = OpportunityType.portal
+    recommended_actions: list[str] = Field(default_factory=list)
+    matched_professors: list[dict[str, str]] = Field(default_factory=list)
     raw: dict[str, Any] = Field(default_factory=dict)
 
 

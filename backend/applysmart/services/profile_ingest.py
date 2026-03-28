@@ -61,7 +61,8 @@ Output MUST be a JSON object matching this structure:
   "verdict": "string",
   "action_plan": ["string"],
   "opportunity_type_verdict": "string",
-  "consistency_summary": "string or null"
+  "consistency_summary": "string or null",
+  "verified_skills": ["string"]
 }"""
 
     # Prepare context
@@ -122,6 +123,7 @@ Output MUST be a JSON object matching this structure:
             "action_plan": data.get("action_plan", []),
             "opportunity_type_verdict": data.get("opportunity_type_verdict"),
             "consistency_summary": data.get("consistency_summary", profile.consistency_summary),
+            "verified_skills": data.get("verified_skills", []),
         })
         return _apply_deterministic_fallbacks(p)
     except Exception as e:
@@ -181,6 +183,14 @@ def _apply_deterministic_fallbacks(p: Profile) -> Profile:
     # Deterministic Conflict Detection (Task 3)
     cv_text = (p.resume_text or "").lower()
     gh_langs = {l.lower() for l in p.github_analysis.languages.keys()}
+    
+    # Auto-verify skills based on GitHub activity
+    verified = set(p.verified_skills)
+    for lang in p.github_analysis.languages.keys():
+        if lang.lower() in cv_text:
+            verified.add(lang)
+    updates["verified_skills"] = list(verified)
+
     if "pytorch" in cv_text or "tensorflow" in cv_text:
         if "python" not in gh_langs:
             if not any(c.type == "Skill Mismatch" for c in p.conflicts):

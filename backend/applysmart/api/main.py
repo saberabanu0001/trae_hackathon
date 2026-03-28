@@ -372,17 +372,23 @@ async def api_scholarships_search(
         initial_state = ApplySmartState(profile=profile)
         
         # 4. Compile and run graph
-        # Note: We run the FULL graph which includes Profile Agent (redundant but safe)
-        # then Opportunity Search, Scoring, and Critic.
         app_graph = build_app()
-        
-        # LangGraph invoke is async-safe
         final_state_dict = await app_graph.ainvoke(initial_state.model_dump())
-        
-        # 5. Return JSON result
+        # Normalize so nested models (drafts with SoP/motivation) round-trip cleanly to JSON
+        try:
+            final_state = ApplySmartState.model_validate(final_state_dict)
+            state_out = final_state.model_dump(mode="json", exclude_none=False)
+        except Exception:
+            state_out = final_state_dict
+
         return {
             "ok": True,
-            "state": final_state_dict
+            "state": state_out,
+            "opportunity_types": {
+                "portal": "portal-based",
+                "research": "research-based",
+                "university": "university-funding"
+            },
         }
     except Exception as e:
         import traceback
