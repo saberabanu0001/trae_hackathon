@@ -3,3 +3,6 @@ backend/.venv
 **/__pycache__
 *.pyc
 .git
+# Let / and /api/* go to root index.py (FastAPI). These duplicates confuse Vercel routing.
+index.html
+api/
