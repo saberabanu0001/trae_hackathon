@@ -9,7 +9,6 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from applysmart.models.core import Profile, ProfileGaps, ApplySmartState
-from applysmart.graph.langgraph_app import build_app
 from applysmart.services.cv_builder import render_cv_markdown
 from applysmart.services.fetch_text import fetch_page_text
 from applysmart.services.github_public import fetch_public_github, parse_github_username
@@ -371,8 +370,10 @@ async def api_scholarships_search(
         # 3. Build LangGraph state
         initial_state = ApplySmartState(profile=profile)
         
-        # 4. Compile and run graph
-        app_graph = build_app()
+        # 4. Compile and run graph (lazy import: langgraph + agents are heavy; keep GET / cold-start small)
+        from applysmart.graph.langgraph_app import build_app as _build_langgraph_app
+
+        app_graph = _build_langgraph_app()
         final_state_dict = await app_graph.ainvoke(initial_state.model_dump())
         # Normalize so nested models (drafts with SoP/motivation) round-trip cleanly to JSON
         try:
