@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import re
 from typing import Any
@@ -32,7 +33,7 @@ async def fetch_public_github(
         "User-Agent": "ApplySmart-ProfileAgent/0.1",
     }
     if token:
-        headers["Authorization"] = f"Bearer {token}"
+        headers["Authorization"] = f"token {token}" # Use 'token' or 'Bearer' for GitHub PAT
 
     out: dict[str, Any] = {"username": username, "profile": None, "repos": [], "error": None}
 
@@ -55,7 +56,7 @@ async def fetch_public_github(
 
         r = await client.get(
             f"https://api.github.com/users/{username}/repos",
-            params={"per_page": max(1, min(max_repos, 30)), "sort": "updated"},
+            params={"per_page": 30, "sort": "updated"},
         )
         if r.status_code != 200:
             out["error"] = f"github repos HTTP {r.status_code}"
@@ -68,15 +69,33 @@ async def fetch_public_github(
         for repo in repos[:max_repos]:
             if not isinstance(repo, dict):
                 continue
-            out["repos"].append(
-                {
-                    "name": repo.get("name"),
-                    "description": repo.get("description"),
-                    "language": repo.get("language"),
-                    "topics": repo.get("topics") or [],
-                    "html_url": repo.get("html_url"),
-                    "stargazers_count": repo.get("stargazers_count"),
-                }
-            )
+            
+            repo_data = {
+                "name": repo.get("name"),
+                "description": repo.get("description"),
+                "language": repo.get("language"),
+                "size": repo.get("size"),
+                "updated_at": repo.get("updated_at"),
+                "topics": repo.get("topics") or [],
+                "html_url": repo.get("html_url"),
+                "stargazers_count": repo.get("stargazers_count"),
+                "readme_content": None
+            }
+            
+            # Fetch README for top 5 repos by stars or recency
+            if len(out["repos"]) < 5:
+                repo_name = repo.get("name")
+                readme_resp = await client.get(f"https://api.github.com/repos/{username}/{repo_name}/readme")
+                if readme_resp.status_code == 200:
+                    readme_json = readme_resp.json()
+                    content_b64 = readme_json.get("content", "")
+                    if content_b64:
+                        try:
+                            decoded = base64.b64decode(content_b64).decode("utf-8", errors="ignore")
+                            repo_data["readme_content"] = decoded[:2000] # Limit to 2000 chars
+                        except Exception:
+                            pass
+            
+            out["repos"].append(repo_data)
 
     return out

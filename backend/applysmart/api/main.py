@@ -35,6 +35,23 @@ def _parse_optional_float(s: str) -> float | None:
         return None
 
 
+def _sanitize_profile_inputs(
+    *,
+    gpa: float,
+    gpa_scale_max: float,
+    budget_usd: int,
+    ielts_f: float | None,
+) -> tuple[float, float, int, float | None]:
+    """Clamp form values so Pydantic never rejects normal UX (e.g. negative budget by mistake)."""
+    gpa = max(0.0, min(10.0, float(gpa)))
+    gpa_scale_max = max(1.0, min(10.0, float(gpa_scale_max)))
+    budget_usd = max(0, int(budget_usd))
+    if ielts_f is not None:
+        if ielts_f < 0 or ielts_f > 9:
+            ielts_f = None
+    return gpa, gpa_scale_max, budget_usd, ielts_f
+
+
 def _analysis_log(profile: Profile, ingest: dict) -> list[str]:
     lines: list[str] = ["→ Profile Agent initialized"]
     gh = (profile.ingest_meta or {}).get("github") or {}
@@ -55,7 +72,17 @@ def _analysis_log(profile: Profile, ingest: dict) -> list[str]:
         lines.append(f"→ Note: {w}")
     if not profile.has_ielts:
         lines.append("→ IELTS: not declared — many opps require proof of English")
-    lines.append("→ Generating opportunity-matching vector (use Profile Card + DNA tab)…")
+    
+    if profile.verdict:
+        lines.append("✓ Profile synthesis complete (LLM)")
+        if profile.conflicts:
+            lines.append(f"→ Found {len(profile.conflicts)} evidence conflicts")
+        if profile.rejection_risks:
+            lines.append(f"→ Identified {len(profile.rejection_risks)} rejection risks")
+    else:
+        lines.append("→ Profile analysis complete (Heuristics only)")
+    
+    lines.append("→ Generating 6-axis Opportunity DNA vector…")
     lines.append("✓ Profile analysis complete. Open your profile card.")
     return lines
 
@@ -153,6 +180,12 @@ async def _build_profile_payload(
 
     interest_list = [x.strip() for x in interests.split(",") if x.strip()]
     ielts_f = _parse_optional_float(ielts_score)
+    gpa, gpa_scale_max, budget_usd, ielts_f = _sanitize_profile_inputs(
+        gpa=gpa,
+        gpa_scale_max=gpa_scale_max,
+        budget_usd=budget_usd,
+        ielts_f=ielts_f,
+    )
     has_ok = _form_bool(has_ielts) or (ielts_f is not None and ielts_f > 0)
 
     try:
@@ -215,24 +248,32 @@ async def api_profile_build(
     academic_status: str = Form(""),
     ielts_score: str = Form(""),
 ):
-    return await _build_profile_payload(
-        full_name=full_name,
-        nationality=nationality,
-        target_country=target_country,
-        degree_level=degree_level,
-        major=major,
-        gpa=gpa,
-        gpa_scale_max=gpa_scale_max,
-        has_ielts=has_ielts,
-        budget_usd=budget_usd,
-        interests=interests,
-        linkedin_url=linkedin_url,
-        github_url=github_url,
-        portfolio_urls=portfolio_urls,
-        resume=resume,
-        academic_status=academic_status,
-        ielts_score=ielts_score,
-    )
+    try:
+        return await _build_profile_payload(
+            full_name=full_name,
+            nationality=nationality,
+            target_country=target_country,
+            degree_level=degree_level,
+            major=major,
+            gpa=gpa,
+            gpa_scale_max=gpa_scale_max,
+            has_ielts=has_ielts,
+            budget_usd=budget_usd,
+            interests=interests,
+            linkedin_url=linkedin_url,
+            github_url=github_url,
+            portfolio_urls=portfolio_urls,
+            resume=resume,
+            academic_status=academic_status,
+            ielts_score=ielts_score,
+        )
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "status": "error",
+            "message": f"Profile analysis failed: {str(e)}"
+        }
 
 
 @app.post("/api/profile/cv.md")

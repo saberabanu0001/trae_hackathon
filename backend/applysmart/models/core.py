@@ -13,6 +13,48 @@ class Bucket(str, Enum):
     reach = "reach"
 
 
+class DNAAxis(BaseModel):
+    score: float = Field(ge=0, le=100)
+    explanation: str
+
+
+class DNAVector(BaseModel):
+    technical_depth: DNAAxis
+    execution_consistency: DNAAxis
+    research_track_fit: DNAAxis
+    language_readiness: DNAAxis
+    engineering_track_fit: DNAAxis
+    publication_strength: DNAAxis
+
+
+class ConflictItem(BaseModel):
+    type: str
+    severity: Literal["critical", "high", "medium", "low"]
+    claim: str
+    evidence: str
+    message: str
+    recommendation: str
+
+
+class RejectionRisk(BaseModel):
+    risk_name: str
+    impact: str
+    urgency: Literal["critical", "high", "medium", "low"]
+    fix_action: str
+
+
+class GitHubAnalysis(BaseModel):
+    repos_count: int = 0
+    languages: dict[str, float] = Field(default_factory=dict)
+    top_repos: list[dict[str, Any]] = Field(default_factory=list)
+    readme_quality_avg: float = 0.0
+    consistency_score: float = 0.0
+    activity_pattern: Literal["consistent", "burst", "inactive"] = "inactive"
+    research_signals: list[str] = Field(default_factory=list)
+    repos_without_description: list[str] = Field(default_factory=list)
+    total_stars: int = 0
+
+
 class Profile(BaseModel):
     full_name: str = Field(default="Demo Student")
     nationality: str = Field(default="Bangladesh")
@@ -38,6 +80,19 @@ class Profile(BaseModel):
     research_interests: list[str] = Field(default_factory=list)
     strengths: list[str] = Field(default_factory=list)
     consistency_summary: str | None = None
+    
+    # Advanced Analysis
+    github_analysis: GitHubAnalysis = Field(default_factory=GitHubAnalysis)
+    conflicts: list[ConflictItem] = Field(default_factory=list)
+    dna: DNAVector | None = None
+    rejection_risks: list[RejectionRisk] = Field(default_factory=list)
+    ielts_gap_analysis: str | None = None
+    budget_analysis: str | None = None
+
+    # LLM Synthesis (from Profile Agent)
+    verdict: str | None = Field(default=None, description="20-second summary of the profile situation.")
+    action_plan: list[str] = Field(default_factory=list, description="30-day action plan specific to the profile.")
+    opportunity_type_verdict: str | None = Field(default=None, description="Engineering vs Research track verdict.")
 
     # Ingest diagnostics (non-secret)
     ingest_meta: dict[str, Any] = Field(default_factory=dict)

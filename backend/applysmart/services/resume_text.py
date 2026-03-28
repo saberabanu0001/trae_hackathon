@@ -3,25 +3,45 @@ from __future__ import annotations
 from io import BytesIO
 from typing import Any
 
-from pypdf import PdfReader
+import pdfplumber
+import fitz # PyMuPDF
 
 
 def extract_text_from_pdf(data: bytes) -> tuple[str | None, dict[str, Any]]:
     meta: dict[str, Any] = {"bytes": len(data)}
+    text = ""
+    
+    # Strategy 1: pdfplumber (best for structured resumes)
     try:
-        reader = PdfReader(BytesIO(data))
-        parts: list[str] = []
-        for page in reader.pages[:30]:
-            t = page.extract_text()
-            if t:
-                parts.append(t)
-        text = "\n".join(parts).strip()
-        meta["pages"] = len(reader.pages)
-        if not text:
-            return None, {**meta, "error": "no_text_extracted"}
-        return text[:120_000], meta
+        with pdfplumber.open(BytesIO(data)) as pdf:
+            parts = []
+            for page in pdf.pages[:30]:
+                t = page.extract_text(layout=True)
+                if t:
+                    parts.append(t)
+            text = "\n".join(parts).strip()
+            meta["pages"] = len(pdf.pages)
+            meta["method"] = "pdfplumber"
     except Exception as e:
-        return None, {**meta, "error": str(e)[:200]}
+        meta["pdfplumber_error"] = str(e)
+
+    # Strategy 2: PyMuPDF (fallback for complex layouts)
+    if not text:
+        try:
+            doc = fitz.open(stream=data, filetype="pdf")
+            parts = []
+            for page in doc:
+                parts.append(page.get_text())
+            text = "\n".join(parts).strip()
+            meta["pages"] = len(doc)
+            meta["method"] = "pymupdf"
+        except Exception as e:
+            meta["pymupdf_error"] = str(e)
+
+    if not text:
+        return None, {**meta, "error": "no_text_extracted"}
+    
+    return text[:120_000], meta
 
 
 def extract_text_from_upload(filename: str, data: bytes) -> tuple[str | None, dict[str, Any]]:

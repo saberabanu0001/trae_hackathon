@@ -57,6 +57,22 @@ def render_cv_markdown(p: Profile) -> str:
             lines.append(f"- {s}")
         lines.append("")
 
+    if p.opportunity_type_verdict:
+        lines.append("## Opportunity type verdict")
+        lines.append(p.opportunity_type_verdict)
+        lines.append("")
+
+    if p.verdict:
+        lines.append("## Overall verdict")
+        lines.append(p.verdict)
+        lines.append("")
+
+    if p.action_plan:
+        lines.append("## 30-day action plan")
+        for step in p.action_plan:
+            lines.append(f"- {step}")
+        lines.append("")
+
     if p.consistency_summary:
         lines.append("## Profile consistency")
         lines.append(p.consistency_summary)
