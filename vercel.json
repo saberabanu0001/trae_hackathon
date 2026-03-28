@@ -1,19 +1,15 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "index.py",
-      "use": "@vercel/python",
-      "config": {
-        "runtime": "python3.11",
-        "maxDuration": 60
-      }
-    }
-  ],
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/index.py"
     }
-  ]
+  ],
+  "functions": {
+    "index.py": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
 }

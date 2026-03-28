@@ -17,6 +17,13 @@ from applysmart.services.resume_text import extract_text_from_upload
 
 app = FastAPI(title="ApplySmart API", version="0.1.0")
 
+
+@app.get("/healthz")
+async def healthz() -> dict[str, bool]:
+    """Cheap probe for serverless (no static files, no graph)."""
+    return {"ok": True}
+
+
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(dotenv_path=_BACKEND_ROOT / ".env", override=False)
 

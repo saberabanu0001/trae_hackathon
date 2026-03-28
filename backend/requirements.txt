@@ -1,8 +1,7 @@
 fastapi
 python-multipart
-uvicorn[standard]
+uvicorn
 pydantic
-pydantic-settings
 python-dotenv
 langgraph
 langchain-core
@@ -12,6 +11,4 @@ rich
 google-genai
 groq
 openai
-pdfplumber
-pymupdf
 nest_asyncio

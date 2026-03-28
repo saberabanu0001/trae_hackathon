@@ -1,0 +1,3 @@
+# Optional: PDF resume parsing (local dev). Omitted from main requirements — native wheels often break Vercel.
+pdfplumber
+pymupdf
