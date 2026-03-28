@@ -1,0 +1,2113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ApplySmart — Profile Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0A0F;
+    --surface: #13131A;
+    --surface2: #1C1C27;
+    --border: rgba(255,255,255,0.07);
+    --border-hi: rgba(255,255,255,0.14);
+    --text: #F0EFF8;
+    --muted: #7A798A;
+    --accent: #7C6FFF;
+    --accent-glow: rgba(124,111,255,0.18);
+    --accent-dim: rgba(124,111,255,0.08);
+    --green: #2DD4A0;
+    --green-dim: rgba(45,212,160,0.1);
+    --amber: #F0A830;
+    --amber-dim: rgba(240,168,48,0.1);
+    --red: #F0546A;
+    --red-dim: rgba(240,84,106,0.1);
+    --blue: #5BA4F5;
+    --blue-dim: rgba(91,164,245,0.1);
+    --serif: 'DM Serif Display', serif;
+    --sans: 'Outfit', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* LAYOUT */
+  .shell {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: 100vh;
+    height: 100vh;
+    max-height: 100vh;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 2rem 1.5rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: .5rem;
+  }
+  .logo-mark {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 600; color: #fff;
+    font-family: var(--serif);
+  }
+  .logo-text { font-size: 15px; font-weight: 600; letter-spacing: .01em; }
+  .logo-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  .step-nav { display: flex; flex-direction: column; gap: 4px; }
+  .step-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px;
+    cursor: pointer; transition: background .15s;
+    border: 1px solid transparent;
+  }
+  .step-item:hover { background: var(--surface2); }
+  .step-item.active { background: var(--accent-dim); border-color: rgba(124,111,255,0.25); }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    flex-shrink: 0; font-family: var(--mono);
+    border: 1px solid var(--border);
+  }
+  .step-item.active .step-num { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .step-item.done .step-num { background: var(--green-dim); color: var(--green); border-color: rgba(45,212,160,0.3); }
+  .step-label { font-size: 13px; font-weight: 400; }
+  .step-item.active .step-label { font-weight: 500; }
+
+  /* COMPLETENESS RING */
+  .profile-completeness {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .ring-row { display: flex; align-items: center; gap: 12px; }
+  .ring-svg { flex-shrink: 0; }
+  .ring-info .ring-pct { font-size: 20px; font-weight: 600; color: var(--accent); }
+  .ring-info .ring-lbl { font-size: 12px; color: var(--muted); }
+  .ring-bars { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+  .bar-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .bar-track { flex: 1; height: 3px; background: var(--border-hi); border-radius: 2px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 2px; transition: width .5s ease; }
+
+  /* MAIN */
+  .main {
+    padding: 2.5rem 2.5rem 4rem;
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  /* SECTION HEADER */
+  .section-head { margin-bottom: 1.25rem; }
+  .section-head h1 { font-family: var(--serif); font-size: 28px; font-weight: 400; line-height: 1.2; margin-bottom: 6px; }
+  .section-head p { font-size: 14px; color: var(--muted); }
+
+  /* STEP PANELS */
+  .step-panel { display: none; }
+  .step-panel.active { display: block; animation: slidein .25s ease; }
+  @keyframes slidein { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+  /* INPUT CARDS */
+  .input-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    transition: border-color .2s;
+  }
+  .input-card:focus-within { border-color: var(--border-hi); }
+  .card-label {
+    font-size: 12px; font-weight: 500; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+    margin-bottom: .75rem; display: flex; align-items: center; gap: 8px;
+  }
+  .card-label .badge {
+    font-size: 10px; padding: 2px 7px; border-radius: 4px;
+    font-family: var(--mono); text-transform: none; letter-spacing: 0;
+  }
+  .badge-opt { background: var(--surface2); color: var(--muted); border: 1px solid var(--border-hi); }
+  .badge-ai { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(124,111,255,0.3); }
+  .badge-new { background: var(--green-dim); color: var(--green); border: 1px solid rgba(45,212,160,0.3); }
+
+  .link-input-row { display: flex; gap: 8px; align-items: center; }
+  .link-input {
+    flex: 1; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px; color: var(--text);
+    font-family: var(--mono); font-size: 13px;
+    transition: border-color .15s; outline: none;
+  }
+  .link-input:focus { border-color: var(--accent); }
+  .link-input::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 9px 18px; border-radius: 8px; border: none;
+    font-family: var(--sans); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all .15s; white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #6A5EFF; }
+  .btn-ghost { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--border-hi); color: var(--text); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  /* FETCH STATUS */
+  .fetch-status {
+    display: none; align-items: center; gap: 8px;
+    margin-top: 10px; padding: 8px 12px;
+    background: var(--surface2); border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 12px; color: var(--muted);
+    font-family: var(--mono);
+  }
+  .fetch-status.visible { display: flex; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dot.loading { background: var(--amber); animation: pulse 1s infinite; }
+  .dot.done { background: var(--green); }
+  .dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* EXTRACTED DATA DISPLAY */
+  .extracted-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px; margin-top: 12px;
+  }
+  .ext-pill {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px;
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+  }
+  .ext-icon { font-size: 14px; flex-shrink: 0; }
+  .ext-key { color: var(--muted); margin-right: 2px; }
+
+  /* SKILL TAGS */
+  .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag {
+    font-size: 12px; font-family: var(--mono);
+    padding: 4px 10px; border-radius: 6px;
+    border: 1px solid var(--border-hi);
+    background: var(--surface2); color: var(--text);
+  }
+  .tag.strong { background: var(--accent-dim); border-color: rgba(124,111,255,0.3); color: var(--accent); }
+  .tag.gap { background: var(--red-dim); border-color: rgba(240,84,106,0.3); color: var(--red); }
+  .tag.medium { background: var(--amber-dim); border-color: rgba(240,168,48,0.3); color: var(--amber); }
+
+  /* MANUAL FIELDS */
+  .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .field-label { font-size: 12px; color: var(--muted); }
+  .field-hint { font-size: 11px; color: var(--muted); margin: 6px 0 0; line-height: 1.4; }
+  .field-input {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; color: var(--text);
+    font-family: var(--sans); font-size: 14px; outline: none;
+    transition: border-color .15s;
+  }
+  .field-input:focus { border-color: var(--accent); }
+  select.field-input { cursor: pointer; }
+  .field-input::placeholder { color: var(--muted); }
+
+  /* PROFILE CARD (output) */
+  .profile-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .profile-hero {
+    padding: 1.75rem 1.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; gap: 1rem;
+  }
+  .avatar {
+    width: 56px; height: 56px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), #A96AFF);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif); font-size: 22px; color: #fff; flex-shrink: 0;
+  }
+  .profile-name { font-family: var(--serif); font-size: 22px; font-weight: 400; line-height: 1.2; }
+  .profile-tagline { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .profile-meta { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+  .meta-chip {
+    font-size: 11px; font-family: var(--mono);
+    padding: 3px 8px; border-radius: 5px;
+    background: var(--surface2); color: var(--muted);
+    border: 1px solid var(--border);
+  }
+
+  .profile-sections { padding: 1.25rem 1.75rem; display: flex; flex-direction: column; gap: 1.25rem; }
+  .ps-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin-bottom: .5rem; font-weight: 500;
+  }
+
+  /* OPPORTUNITY DNA */
+  .dna-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .dna-box {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .dna-score {
+    font-size: 22px; font-weight: 600; font-family: var(--mono);
+    line-height: 1;
+  }
+  .dna-label { font-size: 11px; color: var(--muted); }
+  .dna-bar { height: 3px; border-radius: 2px; margin-top: 6px; }
+
+  /* INSIGHT CARDS */
+  .insight-list { display: flex; flex-direction: column; gap: 8px; }
+  .insight-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--border);
+    font-size: 13px; background: var(--surface2);
+  }
+  .insight-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .insight-text { line-height: 1.5; }
+  .insight-text strong { color: var(--text); font-weight: 500; }
+  .insight-row.positive { border-color: rgba(45,212,160,0.2); background: var(--green-dim); }
+  .insight-row.warning { border-color: rgba(240,168,48,0.2); background: var(--amber-dim); }
+  .insight-row.gap { border-color: rgba(240,84,106,0.2); background: var(--red-dim); }
+  .insight-row.blue { border-color: rgba(91,164,245,0.2); background: var(--blue-dim); }
+  .insight-item {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px;
+  }
+  .insight-item.error { border-color: var(--red-dim); background: var(--red-dim); color: var(--red); }
+
+  /* TIMELINE */
+  .timeline { position: relative; padding-left: 2rem; }
+  .timeline::before {
+    content: ''; position: absolute; left: 7px; top: 0; bottom: 0;
+    width: 2px; background: var(--border-hi);
+  }
+  .timeline-item { position: relative; margin-bottom: 1.5rem; }
+  .timeline-item::before {
+    content: ''; position: absolute; left: -2rem; top: 5px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); border: 3px solid var(--bg);
+    margin-left: 1px;
+  }
+  .timeline-day { font-size: 11px; font-weight: 600; color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
+  .timeline-task { font-size: 14px; color: var(--text); }
+
+  /* DOWNLOAD BTN */
+  .dl-bar {
+    padding: 1rem 1.75rem;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: center;
+    background: var(--surface);
+  }
+  .dl-bar p { font-size: 12px; color: var(--muted); flex: 1; }
+
+  /* RESUME PREVIEW */
+  .resume-preview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .resume-header {
+    background: var(--surface2);
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .resume-name { font-family: var(--serif); font-size: 26px; font-weight: 400; }
+  .resume-contact { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .resume-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .resume-section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--accent); font-weight: 500; border-bottom: 1px solid rgba(124,111,255,0.2);
+    padding-bottom: 4px; margin-bottom: .5rem;
+  }
+  .resume-item { margin-bottom: .75rem; }
+  .resume-item-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .resume-item-title { font-weight: 500; font-size: 13px; }
+  .resume-item-date { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+  .resume-item-sub { font-size: 12px; color: var(--muted); margin: 2px 0 4px; }
+  .resume-bullets { font-size: 12px; color: #B0AEBE; line-height: 1.6; padding-left: 14px; }
+  .resume-bullets li { margin-bottom: 2px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 4px; margin-bottom: 1.25rem; }
+  .tab {
+    padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--muted); font-family: var(--sans);
+    font-size: 13px; cursor: pointer; transition: all .15s;
+  }
+  .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .tab:hover:not(.active) { background: var(--surface2); color: var(--text); }
+
+  /* UPLOAD ZONE */
+  .upload-zone {
+    border: 1.5px dashed var(--border-hi);
+    border-radius: 10px; padding: 1.5rem;
+    text-align: center; cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: transparent;
+  }
+  .upload-zone:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .upload-zone-icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 13px; color: var(--muted); }
+  .upload-zone span { font-size: 12px; font-family: var(--mono); color: var(--muted); margin-top: 4px; display: block; }
+
+  /* STEPS FOOTER */
+  .steps-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+  }
+  .step-dots { display: flex; gap: 6px; }
+  .sdot { width: 6px; height: 6px; border-radius: 50%; background: var(--border-hi); transition: background .2s; }
+  .sdot.active { background: var(--accent); }
+  .sdot.done { background: var(--green); }
+
+  /* NOTIFICATION PANEL (Perfected) */
+  .notif-panel {
+    margin-top: 0.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+    max-height: 280px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto;
+    padding-right: 4px;
+  }
+  .notif-panel::-webkit-scrollbar { width: 4px; }
+  .notif-panel::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 10px; }
+
+  .notif-title { font-size: 9px; text-transform: uppercase; color: var(--muted); letter-spacing: .12em; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  
+  .notif-item {
+    display: flex; gap: 10px; align-items: flex-start;
+    animation: bubbleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    margin-bottom: 4px;
+  }
+  .notif-avatar {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--surface2); display: flex; align-items: center; justify-content: center;
+    font-size: 14px; border: 1px solid var(--border); flex-shrink: 0;
+  }
+  .notif-bubble {
+    background: var(--surface2); border-radius: 0 12px 12px 12px;
+    padding: 8px 12px; font-size: 12px; line-height: 1.4;
+    border: 1px solid var(--border); color: var(--text);
+    position: relative; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .notif-bubble::before {
+    content: ''; position: absolute; left: -6px; top: 0;
+    width: 0; height: 0; border-style: solid;
+    border-width: 0 6px 6px 0; border-color: transparent var(--border) transparent transparent;
+  }
+  .notif-time { font-size: 9px; color: var(--muted); margin-top: 4px; display: block; font-family: var(--mono); }
+  .notif-agent-name { font-weight: 700; font-size: 11px; margin-bottom: 2px; color: var(--accent); }
+
+  /* TYPING INDICATOR */
+  .typing { display: flex; gap: 3px; padding: 4px 0; }
+  .typing-dot { width: 4px; height: 4px; background: var(--muted); border-radius: 50%; animation: typing 1.4s infinite; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bubbleIn {
+    from { opacity: 0; transform: translateY(10px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes typing {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+  }
+
+  /* DRAFTS / DOCUMENT SUITE */
+  .doc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin-top: 1rem;
+  }
+  .doc-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .doc-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .doc-card::before {
+    content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%;
+    background: var(--accent); opacity: 0.6;
+  }
+  .doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .doc-icon {
+    width: 40px; height: 40px; border-radius: 8px;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; border: 1px solid var(--border);
+  }
+  .doc-status {
+    font-size: 9px; text-transform: uppercase; font-weight: 700;
+    padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em;
+  }
+  .status-ready { background: var(--green-dim); color: var(--green); border: 1px solid rgba(45,212,160,0.2); }
+  .status-drafting { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(240,168,48,0.2); }
+  
+  .doc-info h3 { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .doc-info p { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  
+  .doc-preview {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 11px;
+    color: var(--muted);
+    max-height: 80px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+  .doc-preview::after {
+    content: ''; position: absolute; bottom: 0; left: 0; width: 100%; height: 20px;
+    background: linear-gradient(transparent, var(--bg));
+  }
+  
+  .doc-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+  }
+
+  .think-log {
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    border: 1px solid var(--accent-dim);
+    display: none;
+  }
+  .think-line {
+    margin-bottom: 4px;
+    display: flex;
+    gap: 8px;
+  }
+  .think-line::before { content: '>'; opacity: 0.5; }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; }
+    .fields-grid, .dna-grid, .extracted-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div>
+      <div class="logo">
+    <div class="logo-mark">A</div>
+    <div>
+      <div class="logo-text">ApplySmart v1.1</div>
+      <div class="logo-sub">7-Agent Intelligence</div>
+    </div>
+  </div>
+    </div>
+
+    <nav class="step-nav" id="stepNav">
+      <div class="step-item active" onclick="goStep(0)">
+        <div class="step-num" id="sn0">1</div>
+        <div class="step-label">Link your profiles</div>
+      </div>
+      <div class="step-item" onclick="goStep(1)">
+        <div class="step-num" id="sn1">2</div>
+        <div class="step-label">Upload resume</div>
+      </div>
+      <div class="step-item" onclick="goStep(2)">
+        <div class="step-num" id="sn2">3</div>
+        <div class="step-label">Basic details</div>
+      </div>
+      <div class="step-item" onclick="goStep(3)">
+        <div class="step-num" id="sn3">4</div>
+        <div class="step-label">AI analysis</div>
+      </div>
+      <div class="step-item" onclick="goStep(4)">
+        <div class="step-num" id="sn4">5</div>
+        <div class="step-label">Your profile card</div>
+      </div>
+    </nav>
+
+    <!-- AGENT NOTIFICATION PANEL -->
+    <div class="notif-panel">
+      <div class="notif-title">
+        <span style="display:inline-block;width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 1.5s infinite"></span>
+        Network Activity
+      </div>
+      <div id="notifList">
+        <div class="notif-item">
+          <div class="notif-avatar">📡</div>
+          <div class="notif-bubble">
+            <div class="notif-agent-name">System</div>
+            Agent network online. Ready for profile ingest.
+            <span class="notif-time">Just now</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+   <div class="profile-completeness">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;font-weight:500;">Profile completeness</div>
+      <div class="ring-row">
+        <svg class="ring-svg" width="52" height="52" viewBox="0 0 52 52">
+          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--surface2)" stroke-width="5"/>
+          <circle id="ringCircle" cx="26" cy="26" r="22" fill="none" stroke="var(--accent)"
+            stroke-width="5" stroke-linecap="round"
+            stroke-dasharray="138.2" stroke-dashoffset="138.2"
+            transform="rotate(-90 26 26)" style="transition:stroke-dashoffset .5s ease"/>
+        </svg>
+        <div class="ring-info">
+          <div class="ring-pct" id="ringPct">0%</div>
+          <div class="ring-lbl">complete</div>
+        </div>
+      </div>
+      <div class="ring-bars">
+        <div class="bar-item">
+          <span style="min-width:70px">GitHub</span>
+          <div class="bar-track"><div class="bar-fill" id="b-gh" style="width:0%;background:var(--green)"></div></div>
+        </div>
+        <div class="bar-item">
+          <span style="min-width:70px">Resume</span>
+          <div class="bar-track"><div class="bar-fill" id="b-cv" style="width:0%;background:var(--blue)"></div></div>
+        </div>
+        <div class="bar-item">
+          <span style="min-width:70px">Details</span>
+          <div class="bar-track"><div class="bar-fill" id="b-det" style="width:0%;background:var(--amber)"></div></div>
+        </div>
+        <div class="bar-item">
+          <span style="min-width:70px">LinkedIn</span>
+          <div class="bar-track"><div class="bar-fill" id="b-li" style="width:0%;background:var(--accent)"></div></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- STEP 0: LINK PROFILES -->
+    <div class="step-panel active" id="panel0">
+      <div class="section-head">
+        <h1>Link your public profiles</h1>
+        <p>The agent reads your GitHub, LinkedIn, and portfolio — extracting skills, projects, and research signals automatically.</p>
+      </div>
+
+      <!-- GITHUB -->
+      <div class="input-card">
+        <div class="card-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--text)" style="flex-shrink:0"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
+          GitHub URL
+          <span class="badge badge-ai">AI reads repos</span>
+        </div>
+        <div class="link-input-row">
+          <input class="link-input" id="githubUrl" type="url" placeholder="https://github.com/yourusername" oninput="updateBar('b-gh', this.value ? 100 : 0)">
+          <button class="btn btn-primary btn-sm" onclick="fetchGithub()">Analyze →</button>
+        </div>
+        <div class="fetch-status" id="ghStatus">
+          <div class="dot loading" id="ghDot"></div>
+          <span id="ghMsg">Reading public repos and commit history...</span>
+        </div>
+        <!-- EXTRACTED DATA (shown after fetch) -->
+        <div id="ghExtracted" style="display:none;margin-top:12px">
+          <div class="tag-cloud" id="langTags"></div>
+          <div class="extracted-grid" style="margin-top:10px">
+            <div class="ext-pill"><span class="ext-icon">📦</span><span class="ext-key">Repos:</span><span id="repoCount">—</span></div>
+            <div class="ext-pill"><span class="ext-icon">🔥</span><span class="ext-key">Streak:</span><span id="streak">—</span></div>
+            <div class="ext-pill"><span class="ext-icon">⭐</span><span class="ext-key">Stars:</span><span id="stars">—</span></div>
+            <div class="ext-pill"><span class="ext-icon">🔎</span><span class="ext-key">Top area:</span><span id="topArea">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LINKEDIN -->
+      <div class="input-card">
+        <div class="card-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#0A66C2" style="flex-shrink:0"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          LinkedIn URL
+          <span class="badge badge-opt">optional</span>
+        </div>
+        <div class="link-input-row">
+          <input class="link-input" id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/yourprofile" oninput="updateBar('b-li', this.value ? 80 : 0)">
+          <button class="btn btn-ghost btn-sm" onclick="fakeLinkedin()">Try →</button>
+        </div>
+        <div class="fetch-status" id="liStatus">
+          <div class="dot" id="liDot"></div>
+          <span id="liMsg"></span>
+        </div>
+      </div>
+
+      <!-- PORTFOLIO -->
+      <div class="input-card">
+        <div class="card-label">
+          Portfolio / Personal Website
+          <span class="badge badge-opt">optional</span>
+        </div>
+        <textarea class="link-input" id="portfolioUrls" rows="3" placeholder="https://yourportfolio.com&#10;(one URL per line)" style="width:100%;min-height:76px;resize:vertical;font-family:var(--mono);font-size:13px;display:block"></textarea>
+        <div class="link-input-row" style="margin-top:8px">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="scanPortfolio()">Scan first URL →</button>
+        </div>
+      </div>
+
+      <div class="steps-footer">
+        <div class="step-dots">
+          <div class="sdot active"></div><div class="sdot"></div><div class="sdot"></div><div class="sdot"></div><div class="sdot"></div>
+        </div>
+        <button class="btn btn-primary" onclick="goStep(1)">Next: Upload resume →</button>
+      </div>
+    </div>
+
+    <!-- STEP 1: RESUME -->
+    <div class="step-panel" id="panel1">
+      <div class="section-head">
+        <h1>Upload your resume</h1>
+        <p>The agent parses your resume and merges it with your GitHub data — filling gaps and resolving conflicts.</p>
+      </div>
+
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-zone-icon">📄</div>
+        <p>Drop your resume here or click to upload</p>
+        <span>PDF, TXT, MD — recommended max 5MB</span>
+      </div>
+      <input type="file" id="resumeFile" accept=".pdf,.txt,.md" style="display:none" />
+
+      <div class="fetch-status" id="cvStatus" style="margin-top:10px">
+        <div class="dot" id="cvDot"></div>
+        <span id="cvMsg"></span>
+      </div>
+
+      <div id="cvExtracted" style="display:none;margin-top:1rem">
+        <div class="input-card" style="padding:1rem">
+          <div class="card-label">Resume file</div>
+          <div class="extracted-grid">
+            <div class="ext-pill"><span class="ext-icon">📄</span><span class="ext-key">File:</span><span id="resumeFileName">—</span></div>
+            <div class="ext-pill"><span class="ext-icon">📊</span><span class="ext-key">Chars (after ingest):</span> <span id="resumeChars">—</span></div>
+          </div>
+          <p style="font-size:12px;color:var(--muted);margin-top:10px" id="resumeHint">Full text merges on Run AI Analysis.</p>
+        </div>
+      </div>
+
+      <div class="steps-footer">
+        <div class="step-dots">
+          <div class="sdot done"></div><div class="sdot active"></div><div class="sdot"></div><div class="sdot"></div><div class="sdot"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="goStep(0)">← Back</button>
+          <button class="btn btn-primary" onclick="goStep(2)">Next: Details →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: MANUAL DETAILS -->
+    <div class="step-panel" id="panel2">
+      <div class="section-head">
+        <h1>A few quick details</h1>
+        <p>The agent couldn't extract these automatically — fill them in to unlock full scholarship matching.</p>
+      </div>
+
+      <div class="input-card">
+        <div class="card-label">Academic information</div>
+        <div class="fields-grid">
+          <div class="field-wrap">
+            <label class="field-label">Full name</label>
+            <input class="field-input" id="fname" type="text" placeholder="Your full name" oninput="updateDetBar()">
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">Major / field</label>
+            <input class="field-input" id="major" type="text" placeholder="Computer Science" value="Computer Science" oninput="updateDetBar()">
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">Target degree (for scholarships)</label>
+            <select class="field-input" id="degreeLevel" onchange="updateDetBar()">
+              <option value="bachelor">Bachelor</option>
+              <option value="master" selected>Master</option>
+              <option value="phd">PhD</option>
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">CGPA (as on your transcript)</label>
+            <input class="field-input" id="gpa" type="number" step="0.01" min="0" max="10" placeholder="3.65" oninput="updateDetBar()">
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">Grading scale (out of)</label>
+            <select class="field-input" id="gpaScaleMax" onchange="updateDetBar()">
+              <option value="4" selected>4.00 — common (e.g. Bangladesh, many India/US transcripts)</option>
+              <option value="4.5">4.50 — some universities</option>
+              <option value="5">5.00 — some national systems</option>
+              <option value="10">10.00 — India &amp; others (10-point CGPA)</option>
+            </select>
+            <p class="field-hint">Matching compares a fair ~4.0-style equivalent to program minimums when those list a GPA.</p>
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">Current status</label>
+            <select class="field-input" id="status" onchange="updateDetBar()">
+              <option value="">Select...</option>
+              <option value="Final year undergraduate">Final year undergraduate</option>
+              <option value="Graduate student">Graduate student</option>
+              <option value="Recent graduate (&lt;2 years)">Recent graduate (&lt;2 years)</option>
+              <option value="Working professional">Working professional</option>
+            </select>
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">Home country</label>
+            <input class="field-input" id="country" type="text" placeholder="e.g. Bangladesh" oninput="updateDetBar()">
+          </div>
+        </div>
+      </div>
+
+      <div class="input-card">
+        <div class="card-label">Language & funding</div>
+        <div class="fields-grid">
+          <div class="field-wrap">
+            <label class="field-label">IELTS score (if taken)</label>
+            <input class="field-input" id="ielts" type="number" step="0.5" min="0" max="9" placeholder="Leave blank if not taken">
+          </div>
+          <div class="field-wrap">
+            <label class="field-label">Monthly budget (USD)</label>
+            <input class="field-input" id="budget" type="number" placeholder="e.g. 500">
+          </div>
+          <div class="field-wrap" style="grid-column:1/-1">
+            <label class="field-label">Target countries (comma-separated)</label>
+            <input class="field-input" id="targetCountries" type="text" placeholder="Germany, South Korea, Japan, Canada...">
+          </div>
+        </div>
+      </div>
+
+      <div class="input-card">
+        <div class="card-label">Research interests <span class="badge badge-ai">used for matching</span></div>
+        <input class="field-input" id="interests" type="text" placeholder="e.g. multi-agent systems, HCI, NLP, computer vision..." style="width:100%">
+        <div style="font-size:12px;color:var(--muted);margin-top:6px">Be specific. "AI" is too broad. "multi-agent LLM systems" is perfect.</div>
+      </div>
+
+      <div class="steps-footer">
+        <div class="step-dots">
+          <div class="sdot done"></div><div class="sdot done"></div><div class="sdot active"></div><div class="sdot"></div><div class="sdot"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
+          <button class="btn btn-primary" onclick="goStep(3);startAnalysis()">Run AI Analysis →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: AI ANALYSIS -->
+    <div class="step-panel" id="panel3">
+      <div class="section-head">
+        <h1>Agent is analyzing your profile</h1>
+        <p>Synthesizing GitHub data, resume, and details into your scholarship compatibility vector.</p>
+      </div>
+
+      <div id="analysisLogContainer" style="font-family:var(--mono);font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem;line-height:2;color:var(--muted);min-height:100px"></div>
+
+      <div class="steps-footer">
+        <div class="step-dots">
+          <div class="sdot done"></div><div class="sdot done"></div><div class="sdot done"></div><div class="sdot active"></div><div class="sdot"></div>
+        </div>
+        <button class="btn btn-primary" id="viewProfileBtn" onclick="goStep(4)" style="display:none">View your profile →</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: PROFILE CARD + RESUME -->
+    <div class="step-panel" id="panel4">
+      <div class="section-head">
+        <h1>Your ApplySmart profile</h1>
+        <p>This profile is now your scholarship matching key — the Opportunity Agent uses it to find and score programs for you.</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('profile')">Profile Card</button>
+        <button class="tab" onclick="showTab('resume')">Auto CV</button>
+        <button class="tab" onclick="showTab('dna')">Opportunity DNA</button>
+        <button class="tab" onclick="showTab('opps')">Scholarships</button>
+        <button class="tab" onclick="showTab('drafts')">Drafts</button>
+        <button class="tab" onclick="showTab('plan')">Action Plan</button>
+        <button class="tab" onclick="showTab('followup')">Assistant Lifecycle</button>
+      </div>
+
+      <!-- PROFILE CARD TAB -->
+      <div id="tab-profile">
+        <div class="profile-card">
+          <div class="profile-hero">
+            <div class="avatar" id="avatarLetter">?</div>
+            <div>
+              <div class="profile-name" id="pcName">—</div>
+              <div class="profile-tagline" id="profileTagline">—</div>
+              <div class="profile-meta" id="profileMetaChips"></div>
+            </div>
+          </div>
+          <div class="profile-sections">
+            <div>
+              <div class="ps-label">Top languages (GitHub + resume)</div>
+              <div class="tag-cloud" id="langTagsCard"><span class="tag">—</span></div>
+            </div>
+            <div>
+              <div class="ps-label">Research interests & signals</div>
+              <div class="tag-cloud" id="researchTagsCard"></div>
+            </div>
+            <div>
+              <div class="ps-label">Agent insights</div>
+              <div class="insight-list" id="insightListCard">
+                <div class="insight-row warning" id="insightPlaceholder">
+                  <span class="insight-icon">◇</span>
+                  <div class="insight-text">Run <strong>AI analysis</strong> to populate strengths, gaps, and notes from your data.</div>
+                </div>
+              </div>
+            </div>
+            <div id="criticsCorner" style="display:none">
+              <div class="ps-label">Critic's Corner — brutally honest AI verdict</div>
+              <div id="brutalVerdict" class="insight-row gap" style="border-left: 4px solid var(--red)">
+                <span class="insight-icon">👺</span>
+                <div class="insight-text">
+                  <strong style="color:var(--red)">Critic Agent:</strong> <span id="brutalText"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="dl-bar">
+            <p>Share this profile with the Opportunity Agent to begin scholarship matching.</p>
+            <button class="btn btn-ghost btn-sm" onclick="showTab('resume')">View CV →</button>
+            <button class="btn btn-primary btn-sm" type="button" onclick="searchScholarships()">Find Scholarships →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- RESUME TAB -->
+      <div id="tab-resume" style="display:none">
+        <div class="resume-preview">
+          <pre id="autoCvMd" style="margin:0;padding:1.25rem 1.5rem;white-space:pre-wrap;word-break:break-word;font-size:12px;font-family:var(--mono);color:var(--text);max-height:72vh;overflow:auto;line-height:1.55;border:none;background:transparent"></pre>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+          <button type="button" class="btn btn-primary btn-sm" onclick="downloadResumeMd()">⬇ Download Auto-CV (.md)</button>
+        </div>
+      </div>
+
+      <!-- OPPORTUNITY DNA TAB -->
+      <div id="tab-dna" style="display:none">
+        <div id="criticGlobalBanner"></div>
+        <div class="input-card">
+          <div class="card-label">Opportunity DNA — scholarship compatibility vector</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">This vector is what the Opportunity Agent uses to match and score scholarships. Not just keywords — it's a weighted profile of your actual fit factors.</p>
+          <div class="dna-grid" id="dnaGrid"></div>
+          <div class="insight-list" style="margin-top:1rem" id="dnaInsights"></div>
+        </div>
+        <div style="margin-top:12px;text-align:right">
+          <button class="btn btn-primary" onclick="searchScholarships()">Find Best Scholarship Matches →</button>
+        </div>
+      </div>
+
+      <!-- OPPORTUNITY TAB -->
+      <div id="tab-opps" style="display:none">
+        <div class="input-card">
+          <div class="card-label">Live Scholarship Matches</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">The Opportunity Agent has searched the global web for fully-funded programs matching your DNA.</p>
+          <div id="oppsLoading" style="text-align:center;padding:2rem;display:none">
+            <div class="dot loading" style="width:20px;height:20px;display:inline-block"></div>
+            <p style="margin-top:10px">Searching global databases (DAAD, Erasmus, MEXT)...</p>
+          </div>
+          <div id="criticVeto"></div>
+          <div id="oppsList" class="insight-list"></div>
+        </div>
+      </div>
+
+      <!-- DRAFTS TAB -->
+      <div id="tab-drafts" style="display:none">
+        <div class="input-card">
+          <div class="card-label">Scholarship Document Suite</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">
+            High-fidelity application materials generated by the <span style="color:var(--accent);font-weight:600">Drafting Agent</span>.
+            <br/><span id="draftingTarget" style="font-size:11px;font-family:var(--mono);color:var(--accent)">Waiting for selection...</span>
+          </p>
+          
+          <div id="draftThinkLog" class="think-log"></div>
+
+          <div id="draftsLoading" style="text-align:center;padding:2rem;display:none">
+            <div class="dot loading" style="width:20px;height:20px;display:inline-block"></div>
+            <p style="margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--accent)">DRAFTING_AGENT: Thinking...</p>
+          </div>
+
+          <div id="draftsContent" style="display:none">
+            <div class="doc-grid">
+              <!-- SoP Card -->
+              <div class="doc-card">
+                <div class="doc-header">
+                  <div class="doc-icon">📄</div>
+                  <span class="doc-status status-ready">Ready</span>
+                </div>
+                <div class="doc-info">
+                  <h3>Statement of Purpose</h3>
+                  <p>Tailored SoP highlighting your technical DNA and research fit.</p>
+                </div>
+                <div class="doc-preview" id="sopPreview">...</div>
+                <div class="doc-actions">
+                  <button class="btn btn-primary btn-sm" onclick="viewFullDraft('sop')">View Full</button>
+                  <button class="btn btn-ghost btn-sm" onclick="downloadDraft('sop')">Download</button>
+                </div>
+              </div>
+
+              <!-- Motivation Card -->
+              <div class="doc-card">
+                <div class="doc-header">
+                  <div class="doc-icon">✍️</div>
+                  <span class="doc-status status-ready">Ready</span>
+                </div>
+                <div class="doc-info">
+                  <h3>Motivation Letter</h3>
+                  <p>Personalized letter focusing on your scholarship compatibility.</p>
+                </div>
+                <div class="doc-preview" id="motivationPreview">...</div>
+                <div class="doc-actions">
+                  <button class="btn btn-primary btn-sm" onclick="viewFullDraft('motivation')">View Full</button>
+                  <button class="btn btn-ghost btn-sm" onclick="downloadDraft('motivation')">Download</button>
+                </div>
+              </div>
+
+              <!-- Email Card -->
+              <div class="doc-card">
+                <div class="doc-header">
+                  <div class="doc-icon">📧</div>
+                  <span class="doc-status status-ready">Ready</span>
+                </div>
+                <div class="doc-info">
+                  <h3>Inquiry Email</h3>
+                  <p>Professional outreach to professors or admission committees.</p>
+                </div>
+                <div class="doc-preview" id="emailPreview">...</div>
+                <div class="doc-actions">
+                  <button class="btn btn-primary btn-sm" onclick="viewFullDraft('email')">View Full</button>
+                  <button class="btn btn-ghost btn-sm" onclick="copyEmail()">Copy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="noDrafts" style="text-align:center;padding:2rem">
+            <div style="font-size:40px;margin-bottom:1rem;opacity:0.3">📚</div>
+            <p style="margin-bottom:1.25rem;color:var(--muted)">No drafts generated yet. Select a scholarship match to begin drafting.</p>
+            <button class="btn btn-primary" onclick="generateDrafts()">Generate Scholarship Suite →</button>
+          </div>
+        </div>
+
+        <!-- FULL DRAFT MODAL (Simulated with simple div for now) -->
+        <div id="fullDraftView" style="display:none;margin-top:1rem;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:1.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;border-bottom:1px solid var(--border);padding-bottom:1rem">
+            <h2 id="modalTitle" style="font-family:var(--serif);font-size:20px">Document Title</h2>
+            <button class="btn btn-ghost btn-sm" onclick="closeFullDraft()">Close</button>
+          </div>
+          <div id="modalContent" style="white-space:pre-wrap;font-size:13px;line-height:1.6;max-height:60vh;overflow-y:auto;color:var(--text)"></div>
+        </div>
+      </div>
+
+      <!-- ACTION PLAN TAB -->
+      <div id="tab-plan" style="display:none">
+        <div class="input-card">
+          <div class="card-label">7-Day Scholarship Winning Sprint</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1.5rem">A high-velocity timeline generated by the Planning Agent based on your profile DNA.</p>
+          <div id="planList" class="timeline"></div>
+        </div>
+      </div>
+
+      <!-- ASSISTANT LIFECYCLE TAB -->
+      <div id="tab-followup" style="display:none">
+        <div class="input-card">
+          <div class="card-label">Assistant Lifecycle — 3-Month Proactive Roadmap</div>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:1.5rem">While you sleep, your agents continue working. This roadmap shows how ApplySmart proactively monitors and manages your application journey over the next 90 days.</p>
+          <div id="followupList" class="insight-list"></div>
+        </div>
+      </div>
+
+      <div class="steps-footer" style="margin-top:1.25rem">
+        <div class="step-dots">
+          <div class="sdot done"></div><div class="sdot done"></div><div class="sdot done"></div><div class="sdot done"></div><div class="sdot active"></div>
+        </div>
+        <button class="btn btn-ghost" onclick="goStep(3)">← Back</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  let currentStep = 0;
+  let lastBuild = null;
+
+  function goStep(n) {
+    document.querySelectorAll('.step-panel').forEach((p, i) => p.classList.toggle('active', i === n));
+    document.querySelectorAll('.step-item').forEach((s, i) => {
+      s.classList.toggle('active', i === n);
+      s.classList.toggle('done', i < n);
+      const num = document.getElementById('sn' + i);
+      if (!num) return;
+      if (i < n) {
+        num.textContent = '✓';
+        num.style.color = 'var(--green)';
+      } else if (i === n) {
+        num.textContent = String(i + 1);
+        num.style.color = '';
+      } else {
+        num.textContent = String(i + 1);
+        num.style.color = '';
+      }
+    });
+    currentStep = n;
+    const mainEl = document.querySelector('.main');
+    if (mainEl) mainEl.scrollTop = 0;
+  }
+
+  function updateBar(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.style.width = val + '%';
+    updateRing();
+  }
+
+  function updateRing() {
+    const bars = ['b-gh', 'b-cv', 'b-det', 'b-li'];
+    const weights = [40, 30, 20, 10];
+    let total = 0;
+    bars.forEach((bid, i) => {
+      const w = parseInt(document.getElementById(bid).style.width, 10) || 0;
+      total += (w / 100) * weights[i];
+    });
+    total = Math.round(total);
+    document.getElementById('ringPct').textContent = total + '%';
+    const circ = 138.2;
+    document.getElementById('ringCircle').style.strokeDashoffset = circ - (circ * total / 100);
+  }
+
+  function updateDetBar() {
+    const name = (document.getElementById('fname').value || '').trim();
+    const ctry = (document.getElementById('country').value || '').trim();
+    const gpa = document.getElementById('gpa').value;
+    const st = (document.getElementById('status').value || '').trim();
+    let pct = 0;
+    if (name) pct += 35;
+    if (ctry) pct += 35;
+    if (gpa) pct += 20;
+    if (st) pct += 10;
+    updateBar('b-det', Math.min(100, pct));
+  }
+
+  async function fetchGithub() {
+    const url = document.getElementById('githubUrl').value.trim();
+    if (!url) return;
+    const status = document.getElementById('ghStatus');
+    const dot = document.getElementById('ghDot');
+    const msg = document.getElementById('ghMsg');
+    status.classList.add('visible');
+    dot.className = 'dot loading';
+    msg.textContent = 'Calling GitHub API…';
+    const fd = new FormData();
+    fd.append('github_url', url);
+    try {
+      const r = await fetch('/api/profile/github-preview', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (!data.ok) {
+        dot.className = 'dot error';
+        msg.textContent = data.error || 'GitHub preview failed';
+        updateBar('b-gh', 20);
+        return;
+      }
+      dot.className = 'dot done';
+      const langs = data.languages || {};
+      const parts = Object.entries(langs).slice(0, 4).map(([k, v]) => `${k} ${v}%`);
+      msg.textContent = 'OK: ' + (parts.join(' · ') || 'no languages in sample');
+      showGhExtractedFromApi(data);
+      updateBar('b-gh', 100);
+    } catch (e) {
+      dot.className = 'dot error';
+      msg.textContent = String(e.message || e);
+    }
+  }
+
+  function showGhExtractedFromApi(data) {
+    const container = document.getElementById('langTags');
+    container.innerHTML = '';
+    const entries = Object.entries(data.languages || {}).sort((a, b) => b[1] - a[1]);
+    entries.slice(0, 10).forEach(([name, pct], i) => {
+      const span = document.createElement('span');
+      span.className = 'tag ' + (i < 3 ? 'strong' : '');
+      span.textContent = name + ' ' + pct + '%';
+      container.appendChild(span);
+    });
+    document.getElementById('repoCount').textContent = String(data.repo_count ?? '—') + ' in sample';
+    document.getElementById('streak').textContent = 'n/a';
+    document.getElementById('stars').textContent = String(data.stars ?? '—');
+    const top = (data.top_topics || []).slice(0, 2).join(', ') || '—';
+    document.getElementById('topArea').textContent = top;
+    document.getElementById('ghExtracted').style.display = 'block';
+  }
+
+  async function fakeLinkedin() {
+    const url = document.getElementById('linkedinUrl').value.trim();
+    const status = document.getElementById('liStatus');
+    const dot = document.getElementById('liDot');
+    const msg = document.getElementById('liMsg');
+    status.classList.add('visible');
+    if (!url) {
+      dot.className = 'dot error';
+      msg.textContent = 'Paste a LinkedIn URL first.';
+      updateBar('b-li', 0);
+      return;
+    }
+    dot.className = 'dot loading';
+    msg.textContent = 'Fetching public page (often blocked)…';
+    const fd = new FormData();
+    fd.append('url', url);
+    try {
+      const r = await fetch('/api/profile/fetch-url', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (data.ok) {
+        dot.className = 'dot done';
+        msg.textContent = 'Got ' + data.chars + ' chars of text (heuristic read).';
+        updateBar('b-li', 85);
+      } else {
+        dot.className = 'dot error';
+        msg.innerHTML =
+          'LinkedIn usually blocks bots. <span style="color:var(--amber)">Use resume + GitHub for reliable signals.</span>';
+        updateBar('b-li', 25);
+      }
+    } catch (e) {
+      dot.className = 'dot error';
+      msg.textContent = String(e);
+    }
+  }
+
+  async function scanPortfolio() {
+    const raw = (document.getElementById('portfolioUrls').value || '').trim().split(/\n/).map(s => s.trim()).filter(Boolean);
+    if (!raw.length) return;
+    const fd = new FormData();
+    fd.append('url', raw[0]);
+    try {
+      const r = await fetch('/api/profile/fetch-url', { method: 'POST', body: fd });
+      const data = await r.json();
+      if (data.ok) {
+        updateBar('b-det', Math.min(100, (parseInt(document.getElementById('b-det').style.width, 10) || 0) + 15));
+      }
+    } catch (_) {}
+  }
+
+  function setupResumeUpload() {
+    const zone = document.getElementById('uploadZone');
+    const inp = document.getElementById('resumeFile');
+    zone.addEventListener('click', () => inp.click());
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
+    zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.style.borderColor = '';
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+        inp.files = e.dataTransfer.files;
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    inp.addEventListener('change', () => {
+      const f = inp.files && inp.files[0];
+      const status = document.getElementById('cvStatus');
+      const dot = document.getElementById('cvDot');
+      const msg = document.getElementById('cvMsg');
+      if (!f) return;
+      status.classList.add('visible');
+      dot.className = 'dot done';
+      msg.textContent = 'Ready to upload: ' + f.name + ' (' + Math.round(f.size / 1024) + ' KB)';
+      zone.innerHTML =
+        '<div class="upload-zone-icon">✅</div><p style="color:var(--green)">' +
+        f.name +
+        '</p><span>Click to replace</span>';
+      document.getElementById('cvExtracted').style.display = 'block';
+      document.getElementById('resumeFileName').textContent = f.name;
+      document.getElementById('resumeChars').textContent = '—';
+      updateBar('b-cv', 100);
+      updateDetBar();
+    });
+  }
+
+  function buildFormData() {
+    const fd = new FormData();
+    fd.append('full_name', document.getElementById('fname').value.trim() || 'Applicant');
+    fd.append('nationality', document.getElementById('country').value.trim() || 'Bangladesh');
+    fd.append('target_country', document.getElementById('targetCountries').value.trim() || 'South Korea');
+    fd.append('degree_level', document.getElementById('degreeLevel').value);
+    fd.append('major', document.getElementById('major').value.trim() || 'Computer Science');
+    const gpaRaw = (document.getElementById('gpa').value || '').trim();
+    let gpaVal = parseFloat(gpaRaw || '3.2');
+    if (!Number.isFinite(gpaVal)) gpaVal = 3.2;
+    gpaVal = Math.max(0, Math.min(10, gpaVal));
+    fd.append('gpa', String(gpaVal));
+    fd.append('gpa_scale_max', document.getElementById('gpaScaleMax').value || '4');
+    const ielts = document.getElementById('ielts').value.trim();
+    fd.append('ielts_score', ielts);
+    fd.append('has_ielts', ielts ? 'true' : 'false');
+    let budgetVal = parseInt(document.getElementById('budget').value || '0', 10);
+    if (!Number.isFinite(budgetVal)) budgetVal = 0;
+    budgetVal = Math.max(0, budgetVal);
+    fd.append('budget_usd', String(budgetVal));
+    fd.append('interests', document.getElementById('interests').value.trim());
+    fd.append('linkedin_url', document.getElementById('linkedinUrl').value.trim());
+    fd.append('github_url', document.getElementById('githubUrl').value.trim());
+    fd.append('portfolio_urls', document.getElementById('portfolioUrls').value.trim());
+    fd.append('academic_status', document.getElementById('status').value.trim());
+    const rf = document.getElementById('resumeFile').files[0];
+    if (rf) fd.append('resume', rf);
+    return fd;
+  }
+
+  function tagEl(text, cls) {
+    const s = document.createElement('span');
+    s.className = 'tag ' + (cls || '');
+    s.textContent = text;
+    return s;
+  }
+
+  function renderTags(containerId, items, maxStrong) {
+    const el = document.getElementById(containerId);
+    el.innerHTML = '';
+    if (!items || !items.length) {
+      el.appendChild(tagEl('—'));
+      return;
+    }
+    
+    // Get verified skills from last build if available
+    const verified = lastBuild?.profile?.verified_skills || [];
+
+    items.slice(0, 20).forEach((x, i) => {
+        const isVerified = verified.some(v => v.toLowerCase() === x.split(' ')[0].toLowerCase());
+        const tag = tagEl(x, i < maxStrong ? 'strong' : '');
+        if (isVerified) {
+            tag.style.borderColor = 'var(--green)';
+            tag.style.color = 'var(--green)';
+            tag.innerHTML = `✓ ${escapeHtml(x)}`;
+            tag.title = "Verified by AI via GitHub activity";
+        }
+        el.appendChild(tag);
+    });
+  }
+
+  function renderInsights(profile, gaps) {
+    const host = document.getElementById('insightListCard');
+    host.innerHTML = '';
+    const ph = document.getElementById('insightPlaceholder');
+    if (ph) ph.remove();
+    const push = (cls, icon, html) => {
+      const row = document.createElement('div');
+      row.className = 'insight-row ' + cls;
+      row.innerHTML =
+        '<span class="insight-icon">' +
+        icon +
+        '</span><div class="insight-text">' +
+        html +
+        '</div>';
+      host.appendChild(row);
+    };
+
+    // 1. Verdict
+    if (profile.verdict) {
+      push('positive', '🎯', '<strong>Verdict:</strong> ' + escapeHtml(profile.verdict));
+    }
+    
+    // 2. Track
+    if (profile.opportunity_type_verdict) {
+      push('blue', '🔬', '<strong>Track:</strong> ' + escapeHtml(profile.opportunity_type_verdict));
+    }
+
+    // 3. Conflicts (Task 3)
+    (profile.conflicts || []).forEach(c => {
+      const cls = c.severity === 'critical' || c.severity === 'high' ? 'gap' : 'warning';
+      push(cls, '⚠️', `<strong>Conflict (${c.severity}):</strong> ${escapeHtml(c.message)}<br/><small>Claim: ${escapeHtml(c.claim)} | Evidence: ${escapeHtml(c.evidence)}</small><br/><em>Rec: ${escapeHtml(c.recommendation)}</em>`);
+    });
+
+    // 4. Strengths (Task 2)
+    (profile.strengths || []).slice(0, 8).forEach((s) =>
+      push('positive', '✦', '<strong>Strength:</strong> ' + escapeHtml(s))
+    );
+
+    // 5. IELTS & Budget Analysis (Task 5)
+    if (profile.ielts_gap_analysis) {
+      push('gap', '🌍', '<strong>Language Gap:</strong> ' + escapeHtml(profile.ielts_gap_analysis));
+    }
+    if (profile.budget_analysis) {
+      push('warning', '💰', '<strong>Budget Note:</strong> ' + escapeHtml(profile.budget_analysis));
+    }
+
+    // 6. Rejection Risks
+    (profile.rejection_risks || []).forEach(r => {
+      const cls = r.urgency === 'critical' || r.urgency === 'high' ? 'gap' : 'warning';
+      push(cls, '🚩', `<strong>Risk:</strong> ${escapeHtml(r.risk_name)} - ${escapeHtml(r.impact)}<br/><em>Fix: ${escapeHtml(r.fix_action)}</em>`);
+    });
+
+    // 7. 30-Day Plan (Task 6)
+    if (profile.action_plan && profile.action_plan.length > 0) {
+      const planHtml = profile.action_plan.map(step => `<li>${escapeHtml(step)}</li>`).join('');
+      push('warning', '📅', '<strong>30-Day Action Plan:</strong> <ul style="margin-top:5px;padding-left:15px">' + planHtml + '</ul>');
+    }
+
+    // 8. Conflict Detection (WOW Moment)
+    if (profile.conflicts && profile.conflicts.length > 0) {
+      profile.conflicts.forEach(c => {
+        const cls = c.severity === 'high' || c.severity === 'critical' ? 'gap' : 'warning';
+        push(cls, '🚩', `<strong>Conflict Detected:</strong> ${escapeHtml(c.message)}<br/><small>Claim: ${escapeHtml(c.claim)} | Evidence: ${escapeHtml(c.evidence)}</small>`);
+      });
+    }
+
+    const notes = (gaps && gaps.notes) || [];
+    notes.forEach((n) => {
+      const low = (n || '').toLowerCase();
+      const cls = low.includes('ielts') || low.includes('linkedin') ? 'gap' : 'warning';
+      push(cls, '◆', escapeHtml(n));
+    });
+
+    if (!host.children.length) {
+      push('warning', '◇', 'No extra insights — add GitHub or resume for richer output.');
+    }
+  }
+
+  function escapeHtml(s) {
+    return (s + '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  }
+
+  function renderDNA(p) {
+    const grid = document.getElementById('dnaGrid');
+    grid.innerHTML = '';
+    
+    const dna = p.dna || {};
+    const axes = [
+      { k: 'Technical depth', d: dna.technical_depth },
+      { k: 'Execution consistency', d: dna.execution_consistency },
+      { k: 'Research track fit', d: dna.research_track_fit },
+      { k: 'Language readiness', d: dna.language_readiness },
+      { k: 'Engineering track fit', d: dna.engineering_track_fit },
+      { k: 'Publication strength', d: dna.publication_strength },
+    ];
+
+    axes.forEach((x) => {
+      const score = x.d ? x.d.score : 0;
+      const expl = x.d ? x.d.explanation : 'No data';
+      const color = score >= 75 ? 'var(--green)' : (score >= 50 ? 'var(--amber)' : 'var(--red)');
+      
+      const box = document.createElement('div');
+      box.className = 'dna-box';
+      box.title = expl;
+      box.innerHTML =
+        '<div class="dna-score" style="color:' +
+        color +
+        '">' +
+        Math.round(score) +
+        '</div><div class="dna-label">' +
+        escapeHtml(x.k) +
+        '</div><div class="dna-bar" style="background:linear-gradient(90deg,' +
+        color +
+        ' ' +
+        score +
+        '%,var(--surface2) ' +
+        score +
+        '%)"></div>';
+      grid.appendChild(box);
+    });
+
+    const ins = document.getElementById('dnaInsights');
+    ins.innerHTML = '';
+    const row = (cls, body) => {
+      const d = document.createElement('div');
+      d.className = 'insight-row ' + cls;
+      d.innerHTML = '<span class="insight-icon">→</span><div class="insight-text">' + body + '</div>';
+      ins.appendChild(d);
+    };
+
+    axes.forEach(x => {
+        if (x.d && x.d.explanation) {
+            row('blue', `<strong>${x.k}:</strong> ${escapeHtml(x.d.explanation)}`);
+        }
+    });
+
+    row(
+      'positive',
+      '<strong>Matching note:</strong> Opportunity Agent will use this profile DNA + your target countries for web search and scoring.'
+    );
+  }
+
+  function applyBuildToUI(data) {
+    lastBuild = data;
+    const p = data.profile;
+    document.getElementById('pcName').textContent = p.full_name || '—';
+    const initial = (p.full_name || '?').trim().charAt(0).toUpperCase();
+    document.getElementById('avatarLetter').textContent = initial || '?';
+    const tagline =
+      (p.major || '') +
+      ' · ' +
+      (p.degree_level || '') +
+      ' track · Targets: ' +
+      (p.target_country || '');
+    document.getElementById('profileTagline').textContent = tagline;
+    const chips = document.getElementById('profileMetaChips');
+    chips.innerHTML = '';
+    const addChip = (t) => {
+      const s = document.createElement('span');
+      s.className = 'meta-chip';
+      s.textContent = t;
+      chips.appendChild(s);
+    };
+    addChip(p.nationality || '');
+    const scaleM = p.gpa_scale_max != null ? Number(p.gpa_scale_max) : 4;
+    const scaleLabel = Number.isInteger(scaleM) ? String(scaleM) : scaleM.toFixed(2);
+    addChip(
+      'CGPA ' + (p.gpa != null ? Number(p.gpa).toFixed(2) : '—') + '/' + scaleLabel
+    );
+    addChip(p.has_ielts ? (p.ielts_score != null ? 'IELTS ' + p.ielts_score : 'IELTS yes') : 'No IELTS');
+    if (p.academic_status) addChip(p.academic_status);
+    renderTags('langTagsCard', p.languages || [], 3);
+    const ri = [...(p.research_interests || []), ...(p.interests || [])];
+    const uniq = [...new Set(ri.map((x) => (x || '').trim()).filter(Boolean))];
+    renderTags('researchTagsCard', uniq, 2);
+    renderInsights(p, data.gaps);
+    document.getElementById('autoCvMd').textContent = data.cv_markdown || '';
+    renderDNA(p);
+    if (p.resume_text) {
+      document.getElementById('resumeChars').textContent = String(p.resume_text.length);
+    }
+    
+    // Render Critic's Corner
+    if (p.verdict) {
+        document.getElementById('criticsCorner').style.display = 'block';
+        document.getElementById('brutalText').textContent = p.verdict;
+    }
+  }
+
+  function _fmtApiError(status, data, rawText) {
+    if (data && Array.isArray(data.detail)) {
+      return data.detail
+        .map((x) => (typeof x === 'string' ? x : x.msg || JSON.stringify(x)))
+        .join(' — ');
+    }
+    if (data && typeof data.detail === 'string') return data.detail;
+    if (rawText && rawText.trim().startsWith('{')) return rawText.slice(0, 400);
+    if (rawText && /internal server error/i.test(rawText))
+      return 'Server error (check API logs). Response was not JSON.';
+    return (data && data.message) || rawText?.slice(0, 280) || ('HTTP ' + status);
+  }
+
+  function addNotif(agent, msg, color = 'var(--accent)') {
+    const list = document.getElementById('notifList');
+    
+    // Agent Icon mapping
+    const icons = {
+        'System': '📡',
+        'Profile Agent': '👤',
+        'Opportunity Agent': '🔍',
+        'Scoring Agent': '📊',
+        'Critic Agent': '🛡️',
+        'Drafting Agent': '✍️',
+        'Planning Agent': '📋',
+        'Follow-up Agent': '📬'
+    };
+    const icon = icons[agent] || '🤖';
+
+    const item = document.createElement('div');
+    item.className = 'notif-item';
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    
+    item.innerHTML = `
+      <div class="notif-avatar">${icon}</div>
+      <div class="notif-bubble" style="border-left: 3px solid ${color}">
+        <div class="notif-agent-name">${agent}</div>
+        ${msg}
+        <span class="notif-time">${time}</span>
+      </div>
+    `;
+    list.prepend(item);
+    if (list.children.length > 8) list.lastElementChild.remove();
+  }
+
+  function showTyping(agent) {
+    const list = document.getElementById('notifList');
+    const icons = { 'Profile Agent': '👤', 'Opportunity Agent': '🔍', 'Drafting Agent': '✍️' };
+    const icon = icons[agent] || '🤖';
+    
+    const id = 'typing-' + agent.replace(/\s+/g, '');
+    if (document.getElementById(id)) return;
+
+    const item = document.createElement('div');
+    item.className = 'notif-item';
+    item.id = id;
+    item.innerHTML = `
+      <div class="notif-avatar">${icon}</div>
+      <div class="notif-bubble">
+        <div class="notif-agent-name">${agent}</div>
+        <div class="typing">
+          <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+        </div>
+      </div>
+    `;
+    list.prepend(item);
+  }
+
+  function hideTyping(agent) {
+    const id = 'typing-' + agent.replace(/\s+/g, '');
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  async function startAnalysis() {
+    const logHost = document.getElementById('analysisLogContainer');
+    logHost.textContent = 'Running Profile Agent on server…';
+    
+    showTyping('Profile Agent');
+    addNotif('Profile Agent', 'Analyzing GitHub and Resume for DNA extraction...', 'var(--blue)');
+    
+    document.getElementById('viewProfileBtn').style.display = 'none';
+    updateDetBar();
+    try {
+      const fd = buildFormData();
+      const r = await fetch('/api/profile/build', { method: 'POST', body: fd });
+      const rawText = await r.text();
+      
+      hideTyping('Profile Agent');
+      
+      let data = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        logHost.textContent = 'Error: ' + _fmtApiError(r.status, null, rawText);
+        return;
+      }
+      if (!r.ok || (data && data.ok === false)) {
+        logHost.textContent = 'Error: ' + _fmtApiError(r.status, data, rawText);
+        addNotif('System', 'Analysis failed.', 'var(--red)');
+        return;
+      }
+      
+      addNotif('Profile Agent', 'DNA Vector synthesized. 6-axis fit computed.', 'var(--green)');
+      
+      const lines = data.analysis_log || [];
+      logHost.textContent = '';
+      lines.forEach((line) => {
+        const d = document.createElement('div');
+        d.textContent = line;
+        logHost.appendChild(d);
+      });
+      applyBuildToUI(data);
+      document.getElementById('viewProfileBtn').style.display = 'inline-block';
+    } catch (e) {
+      logHost.textContent = 'Error: ' + (e.message || String(e));
+    }
+  }
+
+  async function searchScholarships() {
+    const list = document.getElementById('oppsList');
+    const loading = document.getElementById('oppsLoading');
+    list.innerHTML = '';
+    loading.style.display = 'block';
+    showTab('opps'); // Custom tab switcher to show opportunities
+    
+    showTyping('Opportunity Agent');
+    addNotif('Opportunity Agent', 'Searching global web for fully-funded matches...', 'var(--blue)');
+
+    try {
+      const fd = buildFormData();
+      const r = await fetch('/api/scholarships/search', { method: 'POST', body: fd });
+      const data = await r.json();
+      
+      hideTyping('Opportunity Agent');
+      loading.style.display = 'none';
+      
+      if (!data.ok) {
+        list.innerHTML = `<div class="insight-item error"><strong>Search Failed:</strong> ${data.message || data.error}</div>`;
+        addNotif('System', 'Search failed.', 'var(--red)');
+        return;
+      }
+      
+      const state = data.state || {};
+      const scoredList = state.scored || [];
+      
+      addNotif('Opportunity Agent', `Found ${scoredList.length} matches. Ranking by fit...`, 'var(--green)');
+
+      if (scoredList.length === 0) {
+        list.innerHTML = '<div class="insight-item">No scholarships found. Try adjusting your target countries or major.</div>';
+        return;
+      }
+      
+      // 1. Show Critic Agent Veto if any (The "Wow" moment)
+      const criticContainer = document.getElementById('criticVeto');
+      criticContainer.innerHTML = '';
+      if (state.critic && state.critic.action === 'block') {
+        addNotif('Critic Agent', `Blocked ${state.critic.affected_title}: ${state.critic.reason}`, 'var(--red)');
+        const div = document.createElement('div');
+        div.className = 'insight-row gap';
+        div.style.marginBottom = '1.5rem';
+        div.innerHTML = `
+          <span class="insight-icon">🛑</span>
+          <div class="insight-text">
+            <strong style="color:var(--red)">Critic Agent Veto:</strong> ${state.critic.affected_title} has been blocked.
+            <div style="font-size:12px;margin-top:4px;color:var(--muted)">${state.critic.reason}</div>
+          </div>
+        `;
+        criticContainer.appendChild(div);
+      }
+
+      scoredList.forEach(scored => {
+        const opp = scored.opportunity;
+        const div = document.createElement('div');
+        div.className = 'insight-item';
+        
+        const score = Math.round(scored.total_score * 10);
+        const bucket = scored.bucket; // safe, target, reach
+        const bucketClass = bucket === 'safe' ? 'badge-new' : (bucket === 'target' ? 'badge-ai' : 'badge-opt');
+        
+        const fundingHtml = opp.fully_funded ? '<span class="badge badge-new">Fully Funded</span>' : '<span class="badge badge-opt">Partial</span>';
+        const deadline = opp.deadline ? new Date(opp.deadline).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : 'Check Official Site';
+        
+        // Country flags mapping
+        const flags = {
+          'Australia': '🇦🇺',
+          'Germany': '🇩🇪',
+          'Japan': '🇯🇵',
+          'South Korea': '🇰🇷',
+          'Singapore': '🇸🇬',
+          'EU/Global': '🇪🇺',
+          'Global': '🌍'
+        };
+        const flag = flags[opp.country] || '📍';
+
+        // Use the personalized reasons from the scoring agent
+        const [matchInsight, eligibilityStatus, eligibilityReason] = scored.reasons;
+        
+        const eligibilityColor = eligibilityStatus === 'Eligible' ? 'var(--green)' : (eligibilityStatus === 'Blocked' ? 'var(--red)' : 'var(--amber)');
+        const eligibilityHtml = `<span style="color:${eligibilityColor};font-size:12px;font-weight:600">${eligibilityStatus}: ${eligibilityReason}</span>`;
+
+        const typeLabel = opp.opp_type || 'portal-based';
+        const actions = opp.recommended_actions || ['Build Checklist', 'View Requirements'];
+        
+        let actionButtonsHtml = '';
+        actions.forEach(action => {
+            if (action === 'View Matched Professors') {
+                actionButtonsHtml += `<button class="btn btn-ghost btn-sm" onclick="showProfessors('${opp.title.replace(/'/g, "\\'")}')">${action}</button>`;
+            } else if (action === 'Generate Inquiry Email') {
+                actionButtonsHtml += `<button class="btn btn-ai btn-sm" onclick="showTab('drafts')">${action} →</button>`;
+            } else {
+                actionButtonsHtml += `<button class="btn btn-ghost btn-sm" onclick="alert('${action} unlocked!')">${action}</button>`;
+            }
+        });
+
+        div.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+            <div>
+              <div style="font-weight:600;font-size:15px;color:var(--text);line-height:1.3">${opp.title}</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">
+                ${flag} ${opp.country} · ${fundingHtml} · <span class="badge badge-opt" style="text-transform:lowercase">${typeLabel}</span>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div class="badge ${bucketClass}" style="text-transform:uppercase;font-size:10px">${bucket}</div>
+              <div style="font-size:18px;font-weight:700;color:var(--accent);margin-top:4px">${score}/10</div>
+            </div>
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
+            <div>
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Deadline</div>
+              <div style="font-size:12px;font-weight:500">${deadline}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Eligibility</div>
+              <div>${eligibilityHtml}</div>
+            </div>
+          </div>
+
+          <p style="font-size:13px;margin:8px 0;line-height:1.4;color:var(--text)">
+            <span style="color:var(--accent);font-weight:600">Why Matched:</span> ${matchInsight}
+          </p>
+          
+          <div id="profContainer-${opp.title.replace(/\s+/g, '').replace(/[^\w]/g, '')}" style="display:none;margin:12px 0;padding:12px;background:var(--accent-dim);border-radius:8px;border:1px solid var(--accent)">
+            <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px">Recommended Professors (AI Matched)</div>
+            <div id="profList-${opp.title.replace(/\s+/g, '').replace(/[^\w]/g, '')}" class="insight-list"></div>
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <a href="${opp.url}" target="_blank" class="btn btn-ghost btn-sm">Official Site ↗</a>
+                ${actionButtonsHtml}
+            </div>
+            <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Fit Score: ${score}/10</span>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+
+      if (lastBuild && typeof lastBuild === 'object') {
+        lastBuild.state = state;
+        if (state.profile) lastBuild.profile = state.profile;
+      } else {
+        lastBuild = { state: state, profile: state.profile };
+      }
+      applyDraftsFromStateResponse(state);
+      
+    } catch (e) {
+      loading.style.display = 'none';
+      list.innerHTML = `<div class="insight-item error"><strong>Error:</strong> ${e.message}</div>`;
+    }
+  }
+
+  function previewClip(text, maxLen) {
+    const t = text == null ? '' : String(text).trim();
+    if (!t) return '—';
+    if (t.length <= maxLen) return t;
+    return t.slice(0, maxLen) + '…';
+  }
+
+  /** Normalize API draft shape and fill Drafts tab + window.currentDrafts */
+  function applyDraftsFromStateResponse(state) {
+    const raw = state && state.drafts;
+    const noDrafts = document.getElementById('noDrafts');
+    const content = document.getElementById('draftsContent');
+    const loading = document.getElementById('draftsLoading');
+    if (!raw) {
+      if (noDrafts) noDrafts.style.display = 'block';
+      if (content) content.style.display = 'none';
+      return;
+    }
+    const d = {
+      scholarship_sop: raw.scholarship_sop || raw.scholarshipSop || '',
+      motivation_letter: raw.motivation_letter || raw.motivationLetter || '',
+      professor_email_subject: raw.professor_email_subject || '',
+      professor_email_body: raw.professor_email_body || '',
+      sop_outline: raw.sop_outline || [],
+    };
+    window.currentDrafts = d;
+    const target = (state.scored && state.scored[0] && state.scored[0].opportunity && state.scored[0].opportunity.title) || 'Scholarship';
+    const dt = document.getElementById('draftingTarget');
+    if (dt) dt.textContent = 'Targeting: ' + target;
+    const sopEl = document.getElementById('sopPreview');
+    const motEl = document.getElementById('motivationPreview');
+    const emEl = document.getElementById('emailPreview');
+    if (sopEl) sopEl.textContent = previewClip(d.scholarship_sop, 280);
+    if (motEl) motEl.textContent = previewClip(d.motivation_letter, 280);
+    if (emEl) {
+      emEl.textContent =
+        previewClip(d.professor_email_subject, 120) +
+        '\n\n' +
+        previewClip(d.professor_email_body, 520);
+    }
+    if (loading) loading.style.display = 'none';
+    if (noDrafts) noDrafts.style.display = 'none';
+    if (content) content.style.display = 'block';
+  }
+
+  function showProfessors(title) {
+    const id = title.replace(/\s+/g, '').replace(/[^\w]/g, '');
+    const container = document.getElementById('profContainer-' + id);
+    const list = document.getElementById('profList-' + id);
+    
+    if (container.style.display === 'block') {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    list.innerHTML = '';
+    
+    // Find the scholarship in last state
+    const state = lastBuild?.state || {};
+    const scoredList = state.scored || [];
+    const scored = scoredList.find(s => s.opportunity.title === title);
+    
+    if (!scored || !scored.opportunity.matched_professors || scored.opportunity.matched_professors.length === 0) {
+        list.innerHTML = '<div class="insight-row">No specific professors matched for this track.</div>';
+        return;
+    }
+    
+    scored.opportunity.matched_professors.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'insight-row positive';
+        div.style.marginBottom = '8px';
+        div.innerHTML = `
+            <span class="insight-icon">🎓</span>
+            <div class="insight-text">
+                <strong>${p.name}</strong> – ${p.university}
+                <div style="font-size:12px;margin-top:2px;color:var(--text)"><strong>Research:</strong> ${p.research}</div>
+                <div style="font-size:11px;margin-top:2px;color:var(--muted)"><strong>Match:</strong> <span style="color:var(--green)">${p.match}</span> | <strong>Email:</strong> ${p.email}</div>
+                <button class="btn btn-ai btn-sm" style="margin-top:8px" onclick="generateDraftsForProf('${p.name.replace(/'/g, "\\'")}', '${p.email}')">Generate Email Draft →</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+  }
+
+  function generateDraftsForProf(name, email) {
+      showTab('drafts');
+      // If drafts aren't generated yet, start the process
+      if (!window.currentDrafts) {
+          generateDrafts();
+      } else {
+          // If already generated, highlight the email card
+          const emailCard = document.querySelector('.doc-card:last-child');
+          if (emailCard) {
+              emailCard.style.borderColor = 'var(--green)';
+              emailCard.scrollIntoView({ behavior: 'smooth' });
+              setTimeout(() => emailCard.style.borderColor = '', 2000);
+          }
+      }
+  }
+
+  async function generateDrafts() {
+    const content = document.getElementById('draftsContent');
+    const loading = document.getElementById('draftsLoading');
+    const noDrafts = document.getElementById('noDrafts');
+    const thinkLog = document.getElementById('draftThinkLog');
+    
+    loading.style.display = 'block';
+    noDrafts.style.display = 'none';
+    content.style.display = 'none';
+    thinkLog.style.display = 'block';
+    thinkLog.innerHTML = '';
+    
+    showTyping('Drafting Agent');
+
+    const addThink = (msg) => {
+        const line = document.createElement('div');
+        line.className = 'think-line';
+        line.textContent = msg;
+        thinkLog.appendChild(line);
+        thinkLog.scrollTop = thinkLog.scrollHeight;
+    };
+
+    // Simulated "thinking" logs for real-time feel
+    const thoughts = [
+        "Analyzing top scholarship: " + (lastBuild?.state?.scored?.[0]?.opportunity?.title || "Target Scholarship"),
+        "Cross-referencing Opportunity DNA with Profile strengths...",
+        "Identifying technical signals from GitHub repository metadata...",
+        "Drafting Statement of Purpose with 'High-Impact' hook...",
+        "Tailoring Motivation Letter to fully-funded criteria...",
+        "Finalizing Professor Inquiry email for research-based track..."
+    ];
+
+    let tIdx = 0;
+    const tInterval = setInterval(() => {
+        if (tIdx < thoughts.length) {
+            addThink(thoughts[tIdx++]);
+        } else {
+            clearInterval(tInterval);
+        }
+    }, 1200);
+
+    try {
+      const fd = buildFormData();
+      const r = await fetch('/api/scholarships/search', { method: 'POST', body: fd });
+      const data = await r.json();
+      
+      clearInterval(tInterval);
+      hideTyping('Drafting Agent');
+      loading.style.display = 'none';
+      
+      if (!data.ok) {
+        noDrafts.style.display = 'block';
+        addThink("ERROR: Drafting agent failed. Check connectivity.");
+        return;
+      }
+      
+      if (!data.state.drafts) {
+        noDrafts.style.display = 'block';
+        addThink("ERROR: No drafts returned in state.");
+        return;
+      }
+
+      applyDraftsFromStateResponse(data.state);
+
+      addNotif('Drafting Agent', 'Document Suite generated. 3 documents ready.', 'var(--green)');
+      addThink("SUCCESS: Document suite ready for review.");
+
+      // RESTORE: Populate Action Plan
+      const planList = document.getElementById('planList');
+      if (planList && data.state.plan?.days) {
+        planList.innerHTML = '';
+        data.state.plan.days.forEach((task, i) => {
+          const div = document.createElement('div');
+          div.className = 'timeline-item';
+          div.innerHTML = `
+            <div class="timeline-day">Day ${i + 1}</div>
+            <div class="timeline-task">${task}</div>
+          `;
+          planList.appendChild(div);
+        });
+        addNotif('Planning Agent', '7-Day application sprint timeline generated.', 'var(--blue)');
+      }
+
+      // RESTORE: Populate Follow-ups
+      const followList = document.getElementById('followupList');
+      if (followList && data.state.followups) {
+        followList.innerHTML = '';
+        data.state.followups.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'insight-item';
+          div.innerHTML = `
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+              <span class="badge badge-ai">In ${item.due_in_days} Days</span>
+              <span class="badge badge-opt">${item.channel.toUpperCase()}</span>
+            </div>
+            <div style="font-size:13px;line-height:1.5;white-space:pre-wrap">${item.message}</div>
+          `;
+          followList.appendChild(div);
+        });
+        addNotif('Follow-up Agent', '3-Month Assistant Lifecycle roadmap activated.', 'var(--purple)');
+      }
+      
+      // Simulate future proactive assistant behavior
+      setTimeout(() => {
+          addNotif('Proactive Agent', 'Scheduled: Weekly web-scan for new openings.', 'var(--amber)');
+      }, 2000);
+      
+      content.style.display = 'block';
+    } catch (e) {
+      clearInterval(tInterval);
+      loading.style.display = 'none';
+      noDrafts.style.display = 'block';
+      addThink("ERROR: " + e.message);
+    }
+  }
+
+  function viewFullDraft(type) {
+    const drafts = window.currentDrafts;
+    if (!drafts) return;
+    
+    const modal = document.getElementById('fullDraftView');
+    const title = document.getElementById('modalTitle');
+    const content = document.getElementById('modalContent');
+    
+    modal.style.display = 'block';
+    
+    if (type === 'sop') {
+        title.textContent = "Statement of Purpose";
+        content.textContent = drafts.scholarship_sop || 'No SoP in state — click Generate Scholarship Suite.';
+    } else if (type === 'motivation') {
+        title.textContent = "Motivation Letter";
+        content.textContent = drafts.motivation_letter || 'No motivation letter in state — click Generate Scholarship Suite.';
+    } else if (type === 'email') {
+        title.textContent = "Inquiry Email";
+        content.textContent = "Subject: " + (drafts.professor_email_subject || '') + "\n\n" + (drafts.professor_email_body || '');
+    }
+    
+    modal.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function closeFullDraft() {
+    document.getElementById('fullDraftView').style.display = 'none';
+  }
+
+  function copyEmail() {
+    const drafts = window.currentDrafts;
+    if (!drafts) return;
+    const text = "Subject: " + drafts.professor_email_subject + "\n\n" + drafts.professor_email_body;
+    navigator.clipboard.writeText(text).then(() => {
+        alert("Email copied to clipboard!");
+    });
+  }
+
+  function downloadDraft(type) {
+    const drafts = window.currentDrafts;
+    if (!drafts) return;
+    const text = type === 'sop' ? drafts.scholarship_sop : drafts.motivation_letter;
+    if (!text || !String(text).trim()) {
+      alert('This document is empty. Run Find Scholarships or Generate Scholarship Suite first.');
+      return;
+    }
+    const blob = new Blob([text], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = type === 'sop' ? 'Statement_of_Purpose.md' : 'Motivation_Letter.md';
+    a.click();
+  }
+
+  function showTab(id) {
+    // Updated to include all 7 agent tabs
+    ['profile', 'resume', 'dna', 'opps', 'drafts', 'plan', 'followup'].forEach((t) => {
+      const el = document.getElementById('tab-' + t);
+      if (el) el.style.display = t === id ? 'block' : 'none';
+    });
+    document.querySelectorAll('.tab').forEach((b) => {
+      const tabLabel = b.textContent.toLowerCase();
+      if (id === 'profile' && tabLabel.includes('profile')) b.classList.add('active');
+      else if (id === 'resume' && tabLabel.includes('resume')) b.classList.add('active');
+      else if (id === 'dna' && tabLabel.includes('dna')) b.classList.add('active');
+      else if (id === 'opps' && tabLabel.includes('scholarship')) b.classList.add('active');
+      else if (id === 'drafts' && tabLabel.includes('drafts')) b.classList.add('active');
+      else if (id === 'plan' && tabLabel.includes('plan')) b.classList.add('active');
+      else if (id === 'followup' && tabLabel.includes('follow-up')) b.classList.add('active');
+      else b.classList.remove('active');
+    });
+  }
+
+  async function downloadResumeMd() {
+    try {
+      const fd = buildFormData();
+      const r = await fetch('/api/profile/cv.md', { method: 'POST', body: fd });
+      const blob = await r.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (document.getElementById('fname').value.trim() || 'profile').replace(/\s+/g, '_') + '_auto_cv.md';
+      a.click();
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  document.getElementById('githubUrl').addEventListener('input', function () {
+    updateBar('b-gh', this.value.trim() ? 40 : 0);
+  });
+  document.getElementById('linkedinUrl').addEventListener('input', function () {
+    updateBar('b-li', this.value.trim() ? 50 : 0);
+  });
+
+  setupResumeUpload();
+  updateRing();
+  updateDetBar();
+</script>
+</body>
+</html>
