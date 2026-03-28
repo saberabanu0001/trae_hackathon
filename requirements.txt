@@ -1,0 +1,17 @@
+fastapi
+python-multipart
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+langgraph
+langchain-core
+httpx
+tenacity
+rich
+google-genai
+groq
+openai
+pdfplumber
+pymupdf
+nest_asyncio
