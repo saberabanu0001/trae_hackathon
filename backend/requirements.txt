@@ -1,0 +1,12 @@
+fastapi
+python-multipart
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+langgraph
+langchain-core
+httpx
+tenacity
+rich
+pypdf

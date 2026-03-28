@@ -1,0 +1,10 @@
+[project]
+name = "applysmart"
+version = "0.1.0"
+description = "7-agent scholarship application assistant (hackathon scaffold)"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
